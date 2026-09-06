@@ -1,0 +1,24 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://sentinal:sentinal@postgres:5432/sentinal
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: change-this-in-production
+    depends_on:
+      - postgres
+      - redis
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sentinal
+      POSTGRES_PASSWORD: sentinal
+      POSTGRES_DB: sentinal
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+volumes:
+  postgres_data:

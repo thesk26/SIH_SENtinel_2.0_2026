@@ -1,0 +1,17 @@
+{
+  "_metadata": {
+    "label": "SIMULATED DEMONSTRATION THREAT INTELLIGENCE",
+    "source": "SENTINAL_DEMO_DATA",
+    "notice": "Reserved documentation/test indicators only"
+  },
+  "192.0.2.100": {
+    "reputation": "SUSPICIOUS",
+    "confidence": 0.85,
+    "source": "SENTINAL_DEMO_DATA"
+  },
+  "198.51.100.42": {
+    "reputation": "SUSPICIOUS",
+    "confidence": 0.78,
+    "source": "SENTINAL_DEMO_DATA"
+  }
+}

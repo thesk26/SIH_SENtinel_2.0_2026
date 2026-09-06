@@ -1,0 +1,62 @@
+{
+  "unique_destinations": [
+    "unique_destinations",
+    "distinct_destinations",
+    "destination_count",
+    "dst_ip_count"
+  ],
+  "connection_frequency": [
+    "connection_frequency",
+    "flow_count",
+    "connections",
+    "connection_count"
+  ],
+  "port_diversity": [
+    "port_diversity",
+    "distinct_ports",
+    "destination_port_count",
+    "dst_port_count"
+  ],
+  "protocol_diversity": [
+    "protocol_diversity",
+    "distinct_protocols",
+    "protocol_count"
+  ],
+  "packet_volume": [
+    "packet_volume",
+    "packets_per_minute",
+    "total_packets",
+    "tot_pkts",
+    "packet_count",
+    "packets"
+  ],
+  "byte_volume": [
+    "byte_volume",
+    "bytes_per_minute",
+    "total_bytes",
+    "tot_bytes",
+    "bytes",
+    "flow_bytes",
+    "byte_count"
+  ],
+  "traffic_spike": ["traffic_spike", "is_spike", "spike"],
+  "repeated_failures": [
+    "repeated_failures",
+    "failed_connections",
+    "failure_count",
+    "retries"
+  ],
+  "rapid_connections": [
+    "rapid_connections",
+    "rapid_attempts",
+    "connection_rate",
+    "request_frequency",
+    "connections_per_minute"
+  ],
+  "flow_duration_ms": [
+    "flow_duration_ms",
+    "duration_ms",
+    "duration",
+    "flow_duration"
+  ]
+}
