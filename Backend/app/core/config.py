@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     assumption_trust_events: int = Field(5, ge=3)
     assumption_trust_confidence: float = Field(0.8, ge=0, le=1)
     assumption_expiry_days: int = Field(30, ge=1)
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"]
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 

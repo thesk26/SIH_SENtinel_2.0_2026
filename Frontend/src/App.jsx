@@ -36,6 +36,8 @@ import {
 } from "lucide-react";
 
 import "./App.css";
+import { clearSession, getDashboardData, login as apiLogin } from "./api";
+import sentinelLogo from "./assets/sentinel-logo.svg";
 
 const stats = [
   {
@@ -219,7 +221,7 @@ function StatCard({ item }) {
         <div className="health-content">
           <div className="health-ring">
             <div className="health-inner">
-              <strong>87</strong>
+              <strong>{item.value}</strong>
               <small>/100</small>
             </div>
           </div>
@@ -245,8 +247,8 @@ function StatCard({ item }) {
           <div className="stat-extra">
             {item.type === "devices" && (
               <>
-                <span className="green">Online: 112</span>
-                <span className="red">Offline: 15</span>
+                <span className="green">Online: {item.online ?? 112}</span>
+                <span className="red">Offline: {item.offline ?? 15}</span>
               </>
             )}
 
@@ -364,7 +366,16 @@ function Infrastructure() {
   );
 }
 
-function ThreatDistribution() {
+function ThreatDistribution({ items = threats }) {
+  const distribution = items.reduce((counts, threat) => {
+    counts[threat.title] = (counts[threat.title] || 0) + 1;
+    return counts;
+  }, {});
+  const total = items.length;
+  const displayCount = (title) => {
+    const count = distribution[title] || 0;
+    return `${count} (${total ? Math.round((count / total) * 100) : 0}%)`;
+  };
   return (
     <div className="panel threat-distribution">
       <div className="panel-header">
@@ -375,29 +386,29 @@ function ThreatDistribution() {
         <div className="donut">
           <div className="donut-center">
             <small>Total</small>
-            <strong>5</strong>
+            <strong>{total}</strong>
           </div>
         </div>
 
         <div className="threat-list">
           <div>
             <span><i className="dot red"></i> Malware</span>
-            <b>2 (40%)</b>
+            <b>{displayCount("Malware Detected")}</b>
           </div>
 
           <div>
             <span><i className="dot orange"></i> Unauthorized Access</span>
-            <b>1 (20%)</b>
+            <b>{displayCount("Unauthorized Access Attempt")}</b>
           </div>
 
           <div>
             <span><i className="dot purple"></i> Anomalous Behavior</span>
-            <b>1 (20%)</b>
+            <b>{displayCount("Anomalous Behavior")}</b>
           </div>
 
           <div>
             <span><i className="dot blue-dot"></i> Policy Violation</span>
-            <b>1 (20%)</b>
+            <b>{displayCount("Policy Violation")}</b>
           </div>
         </div>
       </div>
@@ -405,9 +416,9 @@ function ThreatDistribution() {
   );
 }
 
-function RiskTrend() {
+function RiskTrend({ riskScore = 0 }) {
   const [points, setPoints] = useState([
-    75, 60, 68, 52, 58, 48, 55, 50, 62, 72
+    75, 60, 68, 52, 58, 48, 55, 50, 62, riskScore || 72
   ]);
 
   useEffect(() => {
@@ -495,7 +506,7 @@ function RiskTrend() {
   );
 }
 
-function RecentThreats() {
+function RecentThreats({ items = threats }) {
   return (
     <div className="panel recent-threats">
       <div className="panel-header">
@@ -506,7 +517,7 @@ function RecentThreats() {
       </div>
 
       <div className="threat-items">
-        {threats.map((threat) => (
+        {items.map((threat) => (
           <div className={`threat-item ${threat.color}`} key={threat.title}>
             <div className="threat-symbol">⚠</div>
 
@@ -526,7 +537,7 @@ function RecentThreats() {
   );
 }
 
-function SecurityEvents({ onViewAll }) {
+function SecurityEvents({ onViewAll, items = events }) {
   return (
     <div className="panel security-events">
       <div className="panel-header">
@@ -546,7 +557,7 @@ function SecurityEvents({ onViewAll }) {
           </thead>
 
           <tbody>
-            {events.map((event, index) => (
+            {items.map((event, index) => (
               <tr key={index}>
                 <td>{event[0]}</td>
                 <td>{event[1]}</td>
@@ -891,8 +902,7 @@ function Sidebar({ active, setActive, sidebarOpen, setSidebarOpen }) {
   return (
     <aside className={`sidebar ${sidebarOpen ? "" : "sidebar-closed"}`}>
       <div className="brand">
-        <div className="brand-logo"><Lock size={23} /></div>
-        <div><strong>SENTINEL</strong><span>Autonomous Cyber Defense System</span></div>
+        <img className="brand-image" src={sentinelLogo} alt="SENTINEL Autonomous Cyber Defense System" />
       </div>
       <nav>
         {items.map(([name, icon]) => (
@@ -979,12 +989,12 @@ function Dashboard({ setActive, onViewEvents, onTakeAction, onViewHealth }) {
   );
 }
 
-function ThreatsAlerts() {
+function ThreatsAlerts({ items = threats }) {
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [selectedThreat, setSelectedThreat] = useState(null);
   const [toast, setToast] = useState("");
 
-  const filteredThreats = threats.filter((threat) => {
+  const filteredThreats = items.filter((threat) => {
     if (statusFilter === "All Status") return true;
     return threat.status === statusFilter;
   });
@@ -999,19 +1009,19 @@ function ThreatsAlerts() {
     setTimeout(() => setToast(""), 2200);
   };
 
-  const criticalCount = threats.filter(
+  const criticalCount = items.filter(
     (threat) => threat.severity === "Critical"
   ).length;
 
-  const highCount = threats.filter(
+  const highCount = items.filter(
     (threat) => threat.severity === "High"
   ).length;
 
-  const mediumCount = threats.filter(
+  const mediumCount = items.filter(
     (threat) => threat.severity === "Medium"
   ).length;
 
-  const lowCount = threats.filter(
+  const lowCount = items.filter(
     (threat) => threat.severity === "Low"
   ).length;
 
@@ -1044,7 +1054,7 @@ function ThreatsAlerts() {
           </div>
           <div>
             <span>AI Threats</span>
-            <strong>{threats.length}</strong>
+            <strong>{items.length}</strong>
           </div>
         </div>
 
@@ -2447,13 +2457,12 @@ function Login({ onLogin }) {
   const submit = (event) => {
     event.preventDefault();
     if (!email.trim() || !password.trim()) { setError("Enter your email and password."); return; }
-    onLogin();
+    onLogin(email.trim(), password).catch((loginError) => setError(loginError.message));
   };
   return (
     <div className="login-page">
       <div className="login-card">
-        <div className="login-logo"><Shield size={31} /></div>
-        <h1>SENTINEL</h1><p>Autonomous Cyber Defense System</p>
+        <img className="login-brand-image" src={sentinelLogo} alt="SENTINEL Autonomous Cyber Defense System" />
         <form onSubmit={submit}>
           <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@sentinel.local" /></label>
           <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter password" /></label>
@@ -2486,13 +2495,38 @@ function App() {
   const [actionOpen, setActionOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [dashboardZone, setDashboardZone] = useState("All Zones");
+  const [dashboardData, setDashboardData] = useState({ riskScore: 72, events, threats });
+
+  const dashboardStats = stats.map((item) => {
+    if (item.type === "health") return { ...item, value: String(Math.max(0, 100 - Math.round(dashboardData.riskScore))) };
+    if (item.type === "threat") return { ...item, value: String(dashboardData.threats.length) };
+    if (item.type === "resolved") return { ...item, value: String(dashboardData.events.filter((event) => event[4] === "Resolved").length) };
+    return item;
+  });
 
   useEffect(() => {
     localStorage.setItem("sentinel-theme", theme);
   }, [theme]);
 
-  const login = () => { sessionStorage.setItem("sentinel-logged-in", "true"); setLoggedIn(true); };
-  const logout = () => { sessionStorage.removeItem("sentinel-logged-in"); setLoggedIn(false); setAdminOpen(false); setNotificationOpen(false); setActive("Dashboard"); };
+  useEffect(() => {
+    if (!loggedIn) return undefined;
+    let cancelled = false;
+    getDashboardData().then((data) => {
+      if (!cancelled && (data.events.length > 0 || data.threats.length > 0)) {
+        setDashboardData(data);
+      }
+    }).catch(() => {
+      // The existing demo data remains visible when the API is unavailable.
+    });
+    return () => { cancelled = true; };
+  }, [loggedIn]);
+
+  const login = async (username, password) => {
+    await apiLogin(username, password);
+    sessionStorage.setItem("sentinel-logged-in", "true");
+    setLoggedIn(true);
+  };
+  const logout = () => { clearSession(); setLoggedIn(false); setAdminOpen(false); setNotificationOpen(false); setActive("Dashboard"); };
 
   if (!loggedIn) return <Login onLogin={login} />;
 
@@ -2512,15 +2546,15 @@ function App() {
         {active === "Dashboard" ? <>
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} theme={theme} setTheme={setTheme} notificationOpen={notificationOpen} setNotificationOpen={setNotificationOpen} adminOpen={adminOpen} setAdminOpen={setAdminOpen} onLogout={logout} />
           <main className="dashboard">
-            <section className="stats-grid">{stats.map((item) => <StatCard item={item} key={item.title} onViewHealth={() => setHealthOpen(true)} />)}</section>
-            <section className="main-grid"><Infrastructure zoneFilter={dashboardZone} setZoneFilter={setDashboardZone} /><div className="middle-column"><ThreatDistribution /><RiskTrend /></div><RecentThreats setActive={setActive} /></section>
-            <section className="bottom-grid"><SecurityEvents onViewAll={() => setEventsOpen(true)} /><AIRecommendation onTakeAction={() => setActionOpen(true)} /></section>
+            <section className="stats-grid">{dashboardStats.map((item) => <StatCard item={item} key={item.title} onViewHealth={() => setHealthOpen(true)} />)}</section>
+            <section className="main-grid"><Infrastructure zoneFilter={dashboardZone} setZoneFilter={setDashboardZone} /><div className="middle-column"><ThreatDistribution items={dashboardData.threats} /><RiskTrend riskScore={dashboardData.riskScore} /></div><RecentThreats items={dashboardData.threats} setActive={setActive} /></section>
+            <section className="bottom-grid"><SecurityEvents items={dashboardData.events} onViewAll={() => setEventsOpen(true)} /><AIRecommendation onTakeAction={() => setActionOpen(true)} /></section>
           </main>
-        </> : active === "Devices" ? <Devices /> : active === "Threats & Alerts" ? <ThreatsAlerts /> : active === "Network Map" ? <NetworkMap /> : active === "Risk Analysis" ? <RiskAnalysis /> : active === "Response Center" ? <ResponseCenter /> : active === "Reports" ? <Reports /> : active === "Settings" ? <SentinelSettings /> : null}
+        </> : active === "Devices" ? <Devices /> : active === "Threats & Alerts" ? <ThreatsAlerts items={dashboardData.threats} /> : active === "Network Map" ? <NetworkMap /> : active === "Risk Analysis" ? <RiskAnalysis /> : active === "Response Center" ? <ResponseCenter /> : active === "Reports" ? <Reports /> : active === "Settings" ? <SentinelSettings /> : null}
       </div>
 
       {eventsOpen && <DashboardModal title="All Security Events" onClose={() => setEventsOpen(false)}>
-        <div className="modal-table"><table><thead><tr><th>Time</th><th>Device</th><th>Event</th><th>Severity</th><th>Status</th></tr></thead><tbody>{events.map((event, index) => <tr key={index}><td>{event[0]}</td><td>{event[1]}</td><td>{event[2]}</td><td><span className={`badge ${event[3].toLowerCase()}`}>{event[3]}</span></td><td>{event[4]}</td></tr>)}</tbody></table></div>
+        <div className="modal-table"><table><thead><tr><th>Time</th><th>Device</th><th>Event</th><th>Severity</th><th>Status</th></tr></thead><tbody>{dashboardData.events.map((event, index) => <tr key={index}><td>{event[0]}</td><td>{event[1]}</td><td>{event[2]}</td><td><span className={`badge ${event[3].toLowerCase()}`}>{event[3]}</span></td><td>{event[4]}</td></tr>)}</tbody></table></div>
       </DashboardModal>}
 
       {actionOpen && <DashboardModal title="Recommended Actions" onClose={() => setActionOpen(false)} className="action-modal">

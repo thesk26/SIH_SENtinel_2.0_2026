@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 126" role="img" aria-labelledby="title desc">
+  <title id="title">SENTINEL</title>
+  <desc id="desc">SENTINEL Autonomous Cyber Defense System</desc>
+  <defs>
+    <linearGradient id="lock" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#29e58c"/>
+      <stop offset="1" stop-color="#39bfff"/>
+    </linearGradient>
+  </defs>
+  <path d="M30 52V38c0-18 14-31 31-31s31 13 31 31v14" fill="none" stroke="url(#lock)" stroke-width="9" stroke-linecap="round"/>
+  <rect x="17" y="48" width="88" height="66" rx="11" fill="none" stroke="url(#lock)" stroke-width="9"/>
+  <circle cx="61" cy="76" r="8" fill="#29e58c"/>
+  <path d="M61 83v15" stroke="#29e58c" stroke-width="7" stroke-linecap="round"/>
+  <text x="132" y="56" fill="#f4f7fb" font-family="Arial, sans-serif" font-size="35" font-weight="700" letter-spacing="-1">SENTINEL</text>
+  <text x="133" y="83" fill="#91a4b8" font-family="Arial, sans-serif" font-size="16">Autonomous Cyber Defense</text>
+  <text x="133" y="105" fill="#91a4b8" font-family="Arial, sans-serif" font-size="16">System</text>
+</svg>

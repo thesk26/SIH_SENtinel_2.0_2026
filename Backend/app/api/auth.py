@@ -25,7 +25,7 @@ def register(payload: UserCreate, db: DbSession) -> UserRead:
 
 @router.post("/login", responses={401: {"description": "Invalid credentials"}})
 def login(payload: LoginRequest, db: DbSession) -> AuthResponse:
-    user = db.scalar(select(User).where(User.username == payload.username))
+    user = db.scalar(select(User).where(or_(User.username == payload.username, User.email == payload.username)))
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return AuthResponse(access_token=create_access_token(user.id), refresh_token=create_refresh_token(user.id), user=user)
