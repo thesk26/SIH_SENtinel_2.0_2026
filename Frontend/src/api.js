@@ -76,10 +76,14 @@ export function normalizeSecurityEvent(event) {
 }
 
 export async function getDashboardData() {
-  const [risk, timeline, attackPath] = await Promise.all([
+  const [risk, timeline, attackPath, summary, devices, telemetry, diagnostics] = await Promise.all([
     request("/dashboard/risk"),
     request("/dashboard/timeline?limit=20"),
     request("/dashboard/attack-path"),
+    request("/dashboard/summary"),
+    request("/devices"),
+    request("/dashboard/telemetry?limit=100"),
+    request("/collector/diagnostics"),
   ]);
   const normalized = timeline.map(normalizeSecurityEvent);
   const threats = normalized.map(({ threat }) => threat);
@@ -87,6 +91,20 @@ export async function getDashboardData() {
     riskScore: Number(risk.risk_score || 0),
     events: normalized.map(({ row }) => row),
     threats,
+    riskHistory: timeline.slice().reverse().map((event) => Number(event.risk_score || 0)),
+    summary,
+    telemetry,
+    diagnostics,
+    devices: devices.map((device) => ({
+      ...device,
+      name: device.hostname || device.id,
+      ip: device.ip_address || "-",
+      type: device.device_type,
+      zone: device.monitoring_scope?.zone || "Configured Scope",
+      status: device.status === "ONLINE" ? "Online" : device.status === "OFFLINE" ? "Offline" : "Unknown",
+      risk: null,
+      lastSeen: device.last_telemetry_at ? new Date(device.last_telemetry_at).toLocaleString() : "No telemetry",
+    })),
     attackPath,
   };
 }

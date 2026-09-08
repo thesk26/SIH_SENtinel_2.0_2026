@@ -17,6 +17,7 @@ class NetworkTraffic(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    device_id: Mapped[str | None] = mapped_column(ForeignKey("devices.id"), index=True)
     source_entity: Mapped[str] = mapped_column(String(128), index=True)
     destination_entity: Mapped[str] = mapped_column(String(128), index=True)
     source_port: Mapped[int | None] = mapped_column(Integer)

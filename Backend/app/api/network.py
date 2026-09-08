@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.core.dependencies import CurrentUser, DbSession
 from app.core.rate_limit import security_rate_limit
 from app.models.attack_forecast import AttackForecast
+from app.models.device import Device
 from app.schemas.demo import DemoRequest, DemoResponse
 from app.schemas.network_traffic import ForecastRead, NetworkAnalysisResponse, NetworkBaselineRead, NetworkTrafficCreate, NetworkTrafficRead
 from app.services.decision_engine import decide
@@ -22,11 +23,33 @@ router = APIRouter(prefix="/network", tags=["network"])
 forecast_router = APIRouter(prefix="/security", tags=["security"], dependencies=[Depends(security_rate_limit)])
 
 
+def _authorized_device(payload: NetworkTrafficCreate, current_user: CurrentUser, db: DbSession) -> Device | None:
+    if not payload.device_id:
+        return None
+    device = db.scalar(select(Device).where(Device.id == payload.device_id, Device.user_id == current_user.id))
+    if device is None:
+        raise HTTPException(status_code=404, detail="Authorized device not found")
+    if device.authorization_state != "ACTIVE":
+        raise HTTPException(status_code=403, detail=f"Device monitoring is {device.authorization_state}; telemetry collection is denied")
+    return device
+
+
+def _record_device_heartbeat(device: Device, timestamp) -> None:
+    observed_at = timestamp or utc_now()
+    device.last_telemetry_at = observed_at
+    device.last_seen = observed_at
+    device.status = "ONLINE"
+
+
 @router.post("/traffic", response_model=NetworkTrafficRead)
 def traffic(payload: NetworkTrafficCreate, current_user: CurrentUser, db: DbSession):
+    device = _authorized_device(payload, current_user, db)
     historical_count = len(user_flows(db, current_user.id))
     from app.services.event_ingestion_service import ingest_flow
     flow, duplicate = ingest_flow(db, current_user.id, payload)
+    flow.device_id = device.id if device else None
+    if device:
+        _record_device_heartbeat(device, flow.timestamp)
     analysis = {"relationship_score": flow.derived_features.get("relationship_score", 0.0)}
     features = {key: value for key, value in flow.derived_features.items() if key not in {"conflicts", "relationship_score", "relationship_deltas"}}
     conflicts = flow.derived_features.get("conflicts", [])
@@ -36,14 +59,18 @@ def traffic(payload: NetworkTrafficCreate, current_user: CurrentUser, db: DbSess
         from app.services.assumption_service import update_relationship_assumption
         update_relationship_assumption(db, current_user.id, f"{flow.destination_entity}:{flow.protocol}:{flow.destination_port}", True, bool(integrity.conflicts))
     persisted = persist_flow(db, flow, eligible)
-    return NetworkTrafficRead(id=persisted.id, timestamp=persisted.timestamp, source_entity=persisted.source_entity, destination_entity=persisted.destination_entity, protocol=persisted.protocol, destination_port=persisted.destination_port, derived_features=persisted.derived_features, baseline_eligible=eligible, event_fingerprint=persisted.event_fingerprint, is_duplicate=duplicate)
+    return NetworkTrafficRead(id=persisted.id, device_id=persisted.device_id, timestamp=persisted.timestamp, source_entity=persisted.source_entity, destination_entity=persisted.destination_entity, protocol=persisted.protocol, destination_port=persisted.destination_port, derived_features=persisted.derived_features, baseline_eligible=eligible, event_fingerprint=persisted.event_fingerprint, is_duplicate=duplicate)
 
 
 @router.post("/analyze")
 def analyze_network(payload: NetworkTrafficCreate, current_user: CurrentUser, db: DbSession) -> NetworkAnalysisResponse:
+    device = _authorized_device(payload, current_user, db)
     historical = user_flows(db, current_user.id)
     from app.services.event_ingestion_service import ingest_flow
     flow, duplicate = ingest_flow(db, current_user.id, payload)
+    flow.device_id = device.id if device else None
+    if device:
+        _record_device_heartbeat(device, flow.timestamp)
     analysis = {"relationship_score": flow.derived_features.get("relationship_score", 0.0)}
     features = {key: value for key, value in flow.derived_features.items() if key not in {"conflicts", "relationship_score", "relationship_deltas"}}
     conflicts = flow.derived_features.get("conflicts", [])

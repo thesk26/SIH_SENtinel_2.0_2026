@@ -6,6 +6,9 @@ from app.api.security import router as security_router
 from app.api.users import router as users_router
 from app.api.network import router as network_router, forecast_router
 from app.api.dashboard import router as dashboard_router
+from app.api.devices import router as devices_router
+from app.api.response import router as response_router
+from app.api.collector import router as collector_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -15,3 +18,6 @@ api_router.include_router(users_router)
 api_router.include_router(network_router)
 api_router.include_router(forecast_router)
 api_router.include_router(dashboard_router)
+api_router.include_router(devices_router)
+api_router.include_router(response_router)
+api_router.include_router(collector_router)

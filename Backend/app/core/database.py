@@ -17,7 +17,30 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 def ensure_schema() -> None:
     inspector = inspect(engine)
-    if "network_traffic" not in inspector.get_table_names():
+    tables = inspector.get_table_names()
+    if "devices" in tables:
+        device_columns = {column["name"] for column in inspector.get_columns("devices")}
+        device_additions = {
+            "hostname": "VARCHAR(255)",
+            "ip_address": "VARCHAR(128)",
+            "mac_address": "VARCHAR(64)",
+            "device_type": "VARCHAR(50) NOT NULL DEFAULT 'unknown'",
+            "network_interface": "VARCHAR(100)",
+            "last_telemetry_at": "DATETIME",
+            "status": "VARCHAR(20) NOT NULL DEFAULT 'UNKNOWN'",
+            "authorization_state": "VARCHAR(20) NOT NULL DEFAULT 'PENDING'",
+            "authorized_by": "VARCHAR(36)",
+            "authorized_at": "DATETIME",
+            "expires_at": "DATETIME",
+            "monitoring_scope": "JSON",
+            "consent_reference": "VARCHAR(255)",
+            "data_source": "VARCHAR(20) NOT NULL DEFAULT 'REAL'",
+        }
+        with engine.begin() as connection:
+            for name, definition in device_additions.items():
+                if name not in device_columns:
+                    connection.execute(text(f"ALTER TABLE devices ADD COLUMN {name} {definition}"))
+    if "network_traffic" not in tables:
         return
     columns = {column["name"] for column in inspector.get_columns("network_traffic")}
     traffic_additions = {
@@ -26,6 +49,7 @@ def ensure_schema() -> None:
         "event_fingerprint": "VARCHAR(64)",
         "is_duplicate": "BOOLEAN NOT NULL DEFAULT FALSE",
         "ingestion_source": "VARCHAR(30) NOT NULL DEFAULT 'REST'",
+        "device_id": "VARCHAR(36)",
     }
     with engine.begin() as connection:
         for name, definition in traffic_additions.items():

@@ -227,7 +227,7 @@ function StatCard({ item }) {
           </div>
 
           <div>
-            <div className="good">Good</div>
+            <div className="good">{item.healthStatus || "Good"}</div>
             <p>{item.description}</p>
             <a href="#">
               View Details <ArrowUpRight size={13} />
@@ -247,21 +247,21 @@ function StatCard({ item }) {
           <div className="stat-extra">
             {item.type === "devices" && (
               <>
-                <span className="green">Online: {item.online ?? 112}</span>
-                <span className="red">Offline: {item.offline ?? 15}</span>
+                <span className="green">Online: {item.online ?? (item.value === "—" ? "—" : 112)}</span>
+                <span className="red">Offline: {item.offline ?? (item.value === "—" ? "—" : 15)}</span>
               </>
             )}
 
             {item.type === "threat" && (
               <>
-                <span className="red">Critical: 2</span>
-                <span className="orange">High: 3</span>
+                <span className="red">Critical: {item.critical ?? "—"}</span>
+                <span className="orange">High: {item.high ?? "—"}</span>
               </>
             )}
 
             {item.type === "resolved" && (
               <>
-                Today: <span className="green">6</span>
+                Today: <span className="green">{item.today ?? "—"}</span>
               </>
             )}
           </div>
@@ -374,7 +374,7 @@ function ThreatDistribution({ items = threats }) {
   const total = items.length;
   const displayCount = (title) => {
     const count = distribution[title] || 0;
-    return `${count} (${total ? Math.round((count / total) * 100) : 0}%)`;
+    return total ? `${count} (${Math.round((count / total) * 100)}%)` : "—";
   };
   return (
     <div className="panel threat-distribution">
@@ -386,7 +386,7 @@ function ThreatDistribution({ items = threats }) {
         <div className="donut">
           <div className="donut-center">
             <small>Total</small>
-            <strong>{total}</strong>
+            <strong>{total || "—"}</strong>
           </div>
         </div>
 
@@ -416,30 +416,8 @@ function ThreatDistribution({ items = threats }) {
   );
 }
 
-function RiskTrend({ riskScore = 0 }) {
-  const [points, setPoints] = useState([
-    75, 60, 68, 52, 58, 48, 55, 50, 62, riskScore || 72
-  ]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setPoints((oldPoints) => {
-        const last = oldPoints[oldPoints.length - 1];
-
-        // Small realistic change from the previous risk value
-        const change = Math.floor(Math.random() * 21) - 10;
-
-        const newValue = Math.max(
-          25,
-          Math.min(95, last + change)
-        );
-
-        return [...oldPoints.slice(1), newValue];
-      });
-    }, 700);
-
-    return () => clearInterval(interval);
-  }, []);
+function RiskTrend({ riskScore = 0, history = [] }) {
+  const points = history.length > 0 ? history.slice(-10) : [riskScore];
 
   const graphPoints = points
     .map((y, index) => {
@@ -499,7 +477,7 @@ function RiskTrend({ riskScore = 0 }) {
         </svg>
 
         <div className="risk-value">
-          Risk Score: <strong>{currentRisk}</strong>
+          Risk Score: <strong>{history.length ? currentRisk : "—"}</strong>
         </div>
       </div>
     </div>
@@ -629,9 +607,9 @@ function AIRecommendation({ onTakeAction }) {
   );
 }
 
-function Devices() {
-  const [deviceList, setDeviceList] = useState(devices);
-  const [selectedDevice, setSelectedDevice] = useState(devices[0]);
+function Devices({ items = [] }) {
+  const [deviceList, setDeviceList] = useState(items);
+  const [selectedDevice, setSelectedDevice] = useState(items[0]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All Devices");
   const [statusFilter, setStatusFilter] = useState("All Status");
@@ -649,12 +627,12 @@ function Devices() {
   });
 
   const categories = [
-    ["All Devices", 127 + Math.max(0, deviceList.length - devices.length)],
-    ["Servers", 18],
-    ["Workstations", 32],
-    ["Network", 24],
-    ["IoT", 28],
-    ["Others", 25],
+    ["All Devices", deviceList.length],
+    ["Servers", deviceList.filter((device) => device.type === "Server").length],
+    ["Workstations", deviceList.filter((device) => device.type === "Workstation").length],
+    ["Network", deviceList.filter((device) => ["Firewall", "Access Point"].includes(device.type)).length],
+    ["IoT", deviceList.filter((device) => device.type === "IoT Device").length],
+    ["Others", deviceList.filter((device) => !["Server", "Workstation", "IoT Device", "Firewall", "Access Point"].includes(device.type)).length],
   ];
 
   const showNotice = (message) => {
@@ -688,6 +666,11 @@ function Devices() {
       setSelectedDevice(filteredDevices[0]);
     }
   }, [category, statusFilter, zoneFilter, search, deviceList]);
+
+  useEffect(() => {
+    setDeviceList(items);
+    setSelectedDevice(items[0]);
+  }, [items]);
 
   const addDevice = (e) => {
     e.preventDefault();
@@ -2453,6 +2436,7 @@ function SentinelSettings() {
 function Login({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const submit = (event) => {
     event.preventDefault();
@@ -2465,7 +2449,7 @@ function Login({ onLogin }) {
         <img className="login-brand-image" src={sentinelLogo} alt="SENTINEL Autonomous Cyber Defense System" />
         <form onSubmit={submit}>
           <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@sentinel.local" /></label>
-          <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter password" /></label>
+          <label>Password<div className="password-field"><input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter password" /><button type="button" className="password-toggle" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} title={showPassword ? "Hide password" : "Show password"}><Eye size={16} /></button></div></label>
           {error && <div className="login-error">{error}</div>}
           <button type="submit" className="login-button">Sign In</button>
         </form>
@@ -2495,12 +2479,14 @@ function App() {
   const [actionOpen, setActionOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [dashboardZone, setDashboardZone] = useState("All Zones");
-  const [dashboardData, setDashboardData] = useState({ riskScore: 72, events, threats });
+  const [dashboardData, setDashboardData] = useState({ riskScore: 0, events: [], threats: [], riskHistory: [], summary: null, devices: [] });
 
   const dashboardStats = stats.map((item) => {
-    if (item.type === "health") return { ...item, value: String(Math.max(0, 100 - Math.round(dashboardData.riskScore))) };
-    if (item.type === "threat") return { ...item, value: String(dashboardData.threats.length) };
-    if (item.type === "resolved") return { ...item, value: String(dashboardData.events.filter((event) => event[4] === "Resolved").length) };
+    const summary = dashboardData.summary;
+    if (item.type === "health") return { ...item, value: summary?.events_processed ? String(Math.max(0, 100 - Math.round(dashboardData.riskScore))) : "—", healthStatus: summary?.events_processed ? "Measured" : "No telemetry", description: summary?.events_processed ? "Calculated from stored security events" : "No telemetry received yet" };
+    if (item.type === "devices") return { ...item, value: summary ? String(summary.devices.total) : "—", online: summary?.devices.online, offline: summary ? summary.devices.total - summary.devices.online : undefined };
+    if (item.type === "threat") return { ...item, value: summary ? String(dashboardData.threats.length) : "—", critical: summary ? dashboardData.threats.filter((threat) => threat.severity === "Critical").length : undefined, high: summary ? dashboardData.threats.filter((threat) => threat.severity === "High").length : undefined };
+    if (item.type === "resolved") return { ...item, value: summary ? String(dashboardData.events.filter((event) => event[4] === "Resolved").length) : "—", today: summary ? dashboardData.events.filter((event) => event[4] === "Resolved").length : undefined };
     return item;
   });
 
@@ -2512,13 +2498,14 @@ function App() {
     if (!loggedIn) return undefined;
     let cancelled = false;
     getDashboardData().then((data) => {
-      if (!cancelled && (data.events.length > 0 || data.threats.length > 0)) {
-        setDashboardData(data);
-      }
+      if (!cancelled) setDashboardData(data);
     }).catch(() => {
-      // The existing demo data remains visible when the API is unavailable.
+      // Keep the real-data empty state when the API is unavailable.
     });
-    return () => { cancelled = true; };
+    const interval = window.setInterval(() => {
+      getDashboardData().then((data) => { if (!cancelled) setDashboardData(data); }).catch(() => {});
+    }, 15000);
+    return () => { cancelled = true; window.clearInterval(interval); };
   }, [loggedIn]);
 
   const login = async (username, password) => {
@@ -2547,10 +2534,10 @@ function App() {
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} theme={theme} setTheme={setTheme} notificationOpen={notificationOpen} setNotificationOpen={setNotificationOpen} adminOpen={adminOpen} setAdminOpen={setAdminOpen} onLogout={logout} />
           <main className="dashboard">
             <section className="stats-grid">{dashboardStats.map((item) => <StatCard item={item} key={item.title} onViewHealth={() => setHealthOpen(true)} />)}</section>
-            <section className="main-grid"><Infrastructure zoneFilter={dashboardZone} setZoneFilter={setDashboardZone} /><div className="middle-column"><ThreatDistribution items={dashboardData.threats} /><RiskTrend riskScore={dashboardData.riskScore} /></div><RecentThreats items={dashboardData.threats} setActive={setActive} /></section>
+            <section className="main-grid"><Infrastructure zoneFilter={dashboardZone} setZoneFilter={setDashboardZone} /><div className="middle-column"><ThreatDistribution items={dashboardData.threats} /><RiskTrend riskScore={dashboardData.riskScore} history={dashboardData.riskHistory} /></div><RecentThreats items={dashboardData.threats} setActive={setActive} /></section>
             <section className="bottom-grid"><SecurityEvents items={dashboardData.events} onViewAll={() => setEventsOpen(true)} /><AIRecommendation onTakeAction={() => setActionOpen(true)} /></section>
           </main>
-        </> : active === "Devices" ? <Devices /> : active === "Threats & Alerts" ? <ThreatsAlerts items={dashboardData.threats} /> : active === "Network Map" ? <NetworkMap /> : active === "Risk Analysis" ? <RiskAnalysis /> : active === "Response Center" ? <ResponseCenter /> : active === "Reports" ? <Reports /> : active === "Settings" ? <SentinelSettings /> : null}
+        </> : active === "Devices" ? <Devices items={dashboardData.devices} /> : active === "Threats & Alerts" ? <ThreatsAlerts items={dashboardData.threats} /> : active === "Network Map" ? <NetworkMap /> : active === "Risk Analysis" ? <RiskAnalysis /> : active === "Response Center" ? <ResponseCenter /> : active === "Reports" ? <Reports /> : active === "Settings" ? <SentinelSettings /> : null}
       </div>
 
       {eventsOpen && <DashboardModal title="All Security Events" onClose={() => setEventsOpen(false)}>

@@ -27,6 +27,26 @@ The API and Swagger UI are available at `http://localhost:8000/docs`. SQLite is 
 
 The operational health endpoints are `/health` and `/system/health`. They report database readiness and whether a compatible ML artifact is loaded without exposing secrets.
 
+## Authorized local collector
+
+The local collector reads connection metadata from the host OS through `psutil`; it does not scan networks, capture payloads, register devices, or authorize monitoring. An administrator must complete the lifecycle first:
+
+1. Register and log in to obtain a bearer token.
+2. `POST /api/devices` with the authorized host metadata. The device starts as `PENDING`.
+3. `POST /api/devices/{device_id}/authorize` with the approved monitoring scope and consent reference.
+4. `POST /api/devices/{device_id}/activate`.
+5. Run the collector with the token and device ID:
+
+```powershell
+$env:SENTINEL_ACCESS_TOKEN = "<access-token>"
+$env:SENTINEL_DEVICE_ID = "<active-device-id>"
+python collector.py --api-url http://127.0.0.1:8000/api --interval 30
+```
+
+Telemetry linked to a `PENDING`, `REVOKED`, or `EXPIRED` device is rejected. The collector submits only connection metadata to `/api/network/traffic`; the backend stores it as `LOCAL_COLLECTOR` with `REAL` device provenance and updates the authorized device heartbeat.
+
+The collector also sends system samples to `POST /api/telemetry` and heartbeats to `POST /api/collector/heartbeat`. Use `GET /api/collector/status` for `ONLINE`, `STALE`, `OFFLINE`, or `DISABLED` freshness, `GET /api/collector/diagnostics` for service counters, and `GET /api/dashboard/telemetry` for stored time-series samples. Freshness is calculated from the last received heartbeat; it is not timer-generated in the frontend.
+
 Device fingerprints and network identifiers are SHA-256 hashed before persistence. Raw keystrokes are never accepted or stored. JWT access and refresh tokens are supported. Authentication and security routes include rate limiting; local development uses an in-memory limiter, while multi-worker deployments can inject the included `RedisRateLimiter` adapter and a managed secret.
 
 ## Tests

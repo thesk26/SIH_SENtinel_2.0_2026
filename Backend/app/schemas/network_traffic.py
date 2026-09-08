@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class NetworkTrafficCreate(BaseModel):
+    device_id: str | None = Field(default=None, max_length=36)
     source_event_id: str | None = Field(default=None, max_length=128)
     ingestion_source: str = Field(default="REST", min_length=1, max_length=30)
     source_ip: str = Field(min_length=1, max_length=128)
@@ -33,6 +34,7 @@ class NetworkTrafficCreate(BaseModel):
 
 class NetworkTrafficRead(BaseModel):
     id: str
+    device_id: str | None = None
     timestamp: datetime
     source_entity: str
     destination_entity: str

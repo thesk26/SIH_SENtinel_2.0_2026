@@ -4,6 +4,9 @@ from app.api.network import forecast_router, router as network_router
 from app.api.security import router as security_router
 from app.api.users import router as users_router
 from app.api.dashboard import router as dashboard_router
+from app.api.devices import router as devices_router
+from app.api.response import router as response_router
+from app.api.collector import public_router as public_collector_router, router as collector_router
 from app.core.config import settings
 from app.core.database import Base, engine, ensure_schema
 from app import models  # noqa: F401
@@ -27,7 +30,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type"],
 )
-for router in (auth_router, behavior_router, security_router, users_router, network_router, forecast_router, dashboard_router):
+for router in (auth_router, behavior_router, security_router, users_router, network_router, forecast_router, dashboard_router, devices_router, response_router, collector_router, public_collector_router):
     app.include_router(router, prefix="/api")
 
 
