@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 
 import "./App.css";
-import { clearSession, getDashboardData, login as apiLogin } from "./api";
+import { clearSession, getDashboardData, listDevices, login as apiLogin, registerDevice } from "./api";
 import sentinelLogo from "./assets/sentinel-logo.svg";
 
 const stats = [
@@ -672,7 +672,7 @@ function Devices({ items = [] }) {
     setSelectedDevice(items[0]);
   }, [items]);
 
-  const addDevice = (e) => {
+  const addDevice = async (e) => {
     e.preventDefault();
     const name = newDevice.name.trim();
     const ip = newDevice.ip.trim();
@@ -682,22 +682,27 @@ function Devices({ items = [] }) {
       return;
     }
 
-    const created = {
-      ...newDevice,
-      name,
-      ip,
-      status: "Online",
-      risk: 8,
-      lastSeen: "Just now",
-      vendor: "SENTINEL Demo",
-      uptime: "0d 0h 1m",
-      reason: "Newly enrolled device. No active security findings.",
-    };
-    setDeviceList((current) => [created, ...current]);
-    setSelectedDevice(created);
-    setShowAddDevice(false);
-    setNewDevice({ name: "", ip: "", type: "Workstation", zone: "Office" });
-    showNotice(`${name} was added successfully.`);
+    try {
+      await registerDevice(newDevice);
+      const refreshed = await listDevices();
+      const normalized = refreshed.map((device) => ({
+        ...device,
+        name: device.hostname || device.id,
+        ip: device.ip_address || "-",
+        type: device.device_type,
+        zone: device.monitoring_scope?.zone || "Configured Scope",
+        status: device.status === "ONLINE" ? "Online" : device.status === "OFFLINE" ? "Offline" : "Unknown",
+        risk: null,
+        lastSeen: device.last_telemetry_at ? new Date(device.last_telemetry_at).toLocaleString() : "No telemetry",
+      }));
+      setDeviceList(normalized);
+      setSelectedDevice(normalized.find((device) => device.name === name) || normalized[0]);
+      setShowAddDevice(false);
+      setNewDevice({ name: "", ip: "", type: "Workstation", zone: "Office" });
+      showNotice(`${name} was registered and monitoring was activated.`);
+    } catch (error) {
+      showNotice(error.message || "Unable to connect the device.");
+    }
   };
 
   const runDeviceAction = (action, device) => {

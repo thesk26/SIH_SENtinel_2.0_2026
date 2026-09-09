@@ -39,6 +39,33 @@ export function clearSession() {
   sessionStorage.removeItem("sentinel-logged-in");
 }
 
+export async function registerDevice(device) {
+  const registered = await request("/devices", {
+    method: "POST",
+    body: JSON.stringify({
+      hostname: device.name,
+      ip_address: device.ip,
+      device_type: device.type,
+      operating_system: device.operating_system || "unknown",
+      network_interface: device.network_interface || null,
+      monitoring_scope: { zone: device.zone, hosts: device.ip ? [device.ip] : [] },
+      consent_reference: "dashboard-owner-approval",
+    }),
+  });
+  await request(`/devices/${registered.id}/authorize`, {
+    method: "POST",
+    body: JSON.stringify({
+      consent_reference: "dashboard-owner-approval",
+      monitoring_scope: { zone: device.zone, hosts: device.ip ? [device.ip] : [] },
+    }),
+  });
+  return request(`/devices/${registered.id}/activate`, { method: "POST" });
+}
+
+export async function listDevices() {
+  return request("/devices");
+}
+
 const formatEventTime = (timestamp) => {
   if (!timestamp) return "--";
   return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
