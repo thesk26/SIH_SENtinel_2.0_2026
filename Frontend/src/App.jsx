@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 
 import "./App.css";
-import { clearSession, getDashboardData, listDevices, login as apiLogin, registerDevice } from "./api";
+import { clearSession, getDashboardData, listDevices, registerDevice } from "./api";
 import sentinelLogo from "./assets/sentinel-logo.svg";
 
 const stats = [
@@ -2445,20 +2445,24 @@ function Login({ onLogin }) {
   const [error, setError] = useState("");
   const submit = (event) => {
     event.preventDefault();
-    if (!email.trim() || !password.trim()) { setError("Enter your email and password."); return; }
-    onLogin(email.trim(), password).catch((loginError) => setError(loginError.message));
+    if (email.trim() !== "sentinel" || password !== "sentinel") {
+      setError("Invalid email or password.");
+      return;
+    }
+    setError("");
+    onLogin();
   };
   return (
     <div className="login-page">
       <div className="login-card">
         <img className="login-brand-image" src={sentinelLogo} alt="SENTINEL Autonomous Cyber Defense System" />
         <form onSubmit={submit}>
-          <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@sentinel.local" /></label>
+          <label>Email<input type="text" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="sentinel" /></label>
           <label>Password<div className="password-field"><input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter password" /><button type="button" className="password-toggle" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} title={showPassword ? "Hide password" : "Show password"}><Eye size={16} /></button></div></label>
           {error && <div className="login-error">{error}</div>}
           <button type="submit" className="login-button">Sign In</button>
         </form>
-        <small>Demo login — backend authentication can be connected later.</small>
+        <small>Demo access for the SENTINEL dashboard.</small>
       </div>
     </div>
   );
@@ -2513,8 +2517,7 @@ function App() {
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [loggedIn]);
 
-  const login = async (username, password) => {
-    await apiLogin(username, password);
+  const login = () => {
     sessionStorage.setItem("sentinel-logged-in", "true");
     setLoggedIn(true);
   };
