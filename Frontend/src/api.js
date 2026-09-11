@@ -33,6 +33,18 @@ export async function login(username, password) {
   return result.user;
 }
 
+export async function ensureDemoSession() {
+  try {
+    await request("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ username: "sentinel", email: "sentinel@example.com", password: "sentinel" }),
+    });
+  } catch (error) {
+    if (!String(error.message).includes("already registered")) throw error;
+  }
+  return login("sentinel", "sentinel");
+}
+
 export function clearSession() {
   sessionStorage.removeItem("sentinel-access-token");
   sessionStorage.removeItem("sentinel-refresh-token");
@@ -64,6 +76,24 @@ export async function registerDevice(device) {
 
 export async function listDevices() {
   return request("/devices");
+}
+
+export function normalizeDevice(device) {
+  const latestTelemetry = device.telemetry;
+  const uptimeSeconds = latestTelemetry?.uptime_seconds;
+  const uptime = uptimeSeconds == null ? null : `${Math.floor(uptimeSeconds / 86400)}d ${Math.floor((uptimeSeconds % 86400) / 3600)}h ${Math.floor((uptimeSeconds % 3600) / 60)}m`;
+  return {
+    ...device,
+    name: device.hostname || device.id,
+    ip: device.ip_address || "-",
+    type: device.device_type,
+    zone: device.monitoring_scope?.zone || "Configured Scope",
+    status: device.status === "ONLINE" ? "Online" : device.status === "OFFLINE" ? "Offline" : "Unknown",
+    risk: null,
+    lastSeen: device.last_telemetry_at ? new Date(device.last_telemetry_at).toLocaleString() : "No telemetry",
+    vendor: "UNKNOWN",
+    uptime,
+  };
 }
 
 const formatEventTime = (timestamp) => {
@@ -103,7 +133,7 @@ export function normalizeSecurityEvent(event) {
 }
 
 export async function getDashboardData() {
-  const [risk, timeline, attackPath, summary, devices, telemetry, diagnostics] = await Promise.all([
+  const [risk, timeline, attackPath, summary, devices, telemetry, diagnostics, relationships] = await Promise.all([
     request("/dashboard/risk"),
     request("/dashboard/timeline?limit=20"),
     request("/dashboard/attack-path"),
@@ -111,27 +141,37 @@ export async function getDashboardData() {
     request("/devices"),
     request("/dashboard/telemetry?limit=100"),
     request("/collector/diagnostics"),
+    request("/dashboard/relationships"),
   ]);
   const normalized = timeline.map(normalizeSecurityEvent);
   const threats = normalized.map(({ threat }) => threat);
+  const latestTelemetryByDevice = telemetry.reduce((latest, sample) => {
+    if (!latest[sample.device_id] || new Date(sample.timestamp) > new Date(latest[sample.device_id].timestamp)) {
+      latest[sample.device_id] = sample;
+    }
+    return latest;
+  }, {});
+  const riskHistory = timeline.slice().reverse().map((event) => Number(event.risk_score || 0));
+  const activeThreats = threats.filter((threat) => ["Active", "Investigating"].includes(threat.status));
   return {
     riskScore: Number(risk.risk_score || 0),
     events: normalized.map(({ row }) => row),
     threats,
-    riskHistory: timeline.slice().reverse().map((event) => Number(event.risk_score || 0)),
+    activeThreats,
+    riskHistory,
     summary,
     telemetry,
     diagnostics,
     devices: devices.map((device) => ({
-      ...device,
-      name: device.hostname || device.id,
-      ip: device.ip_address || "-",
-      type: device.device_type,
-      zone: device.monitoring_scope?.zone || "Configured Scope",
-      status: device.status === "ONLINE" ? "Online" : device.status === "OFFLINE" ? "Offline" : "Unknown",
-      risk: null,
-      lastSeen: device.last_telemetry_at ? new Date(device.last_telemetry_at).toLocaleString() : "No telemetry",
+      ...normalizeDevice({ ...device, telemetry: latestTelemetryByDevice[device.id] || null }),
+      telemetry: latestTelemetryByDevice[device.id] || null,
+      cpuPercent: latestTelemetryByDevice[device.id]?.cpu_percent ?? null,
+      memoryPercent: latestTelemetryByDevice[device.id]?.memory_percent ?? null,
+      processCount: latestTelemetryByDevice[device.id]?.process_count ?? null,
+      serviceCount: latestTelemetryByDevice[device.id]?.service_count ?? null,
+      connectionCount: latestTelemetryByDevice[device.id]?.connection_count ?? null,
     })),
+    relationships,
     attackPath,
   };
 }

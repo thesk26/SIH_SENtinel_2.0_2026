@@ -41,6 +41,23 @@ def ensure_schema() -> None:
                 if name not in device_columns:
                     connection.execute(text(f"ALTER TABLE devices ADD COLUMN {name} {definition}"))
     if "network_traffic" not in tables:
+        telemetry_columns = {column["name"] for column in inspector.get_columns("telemetry_samples")} if "telemetry_samples" in tables else set()
+        telemetry_additions = {
+            "packets_sent": "INTEGER",
+            "packets_received": "INTEGER",
+            "process_count": "INTEGER",
+            "service_count": "INTEGER",
+            "memory_total_bytes": "INTEGER",
+            "memory_available_bytes": "INTEGER",
+            "memory_used_bytes": "INTEGER",
+            "disk_total_bytes": "INTEGER",
+            "disk_free_bytes": "INTEGER",
+        }
+        if telemetry_columns:
+            with engine.begin() as connection:
+                for name, definition in telemetry_additions.items():
+                    if name not in telemetry_columns:
+                        connection.execute(text(f"ALTER TABLE telemetry_samples ADD COLUMN {name} {definition}"))
         return
     columns = {column["name"] for column in inspector.get_columns("network_traffic")}
     traffic_additions = {
@@ -75,6 +92,23 @@ def ensure_schema() -> None:
             for name, definition in additions.items():
                 if name not in forecast_columns:
                     connection.execute(text(f"ALTER TABLE attack_forecasts ADD COLUMN {name} {definition}"))
+        if "telemetry_samples" in inspector.get_table_names():
+            telemetry_columns = {column["name"] for column in inspector.get_columns("telemetry_samples")}
+            telemetry_additions = {
+                "packets_sent": "INTEGER",
+                "packets_received": "INTEGER",
+                "process_count": "INTEGER",
+                "service_count": "INTEGER",
+                "memory_total_bytes": "INTEGER",
+                "memory_available_bytes": "INTEGER",
+                "memory_used_bytes": "INTEGER",
+                "disk_total_bytes": "INTEGER",
+                "disk_free_bytes": "INTEGER",
+            }
+            with engine.begin() as connection:
+                for name, definition in telemetry_additions.items():
+                    if name not in telemetry_columns:
+                        connection.execute(text(f"ALTER TABLE telemetry_samples ADD COLUMN {name} {definition}"))
     if "assumptions" in inspector.get_table_names():
         assumption_columns = {column["name"] for column in inspector.get_columns("assumptions")}
         assumption_additions = {

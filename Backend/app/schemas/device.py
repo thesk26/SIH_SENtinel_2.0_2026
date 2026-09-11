@@ -1,6 +1,7 @@
 from datetime import datetime
+from ipaddress import IPv4Address, AddressValueError
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 AUTHORIZATION_STATES = {"PENDING", "AUTHORIZED", "ACTIVE", "REVOKED", "EXPIRED"}
@@ -16,6 +17,19 @@ class DeviceRegisterRequest(BaseModel):
     network_interface: str | None = Field(default=None, max_length=100)
     monitoring_scope: dict = Field(default_factory=dict)
     consent_reference: str | None = Field(default=None, max_length=255)
+
+    @field_validator("ip_address")
+    @classmethod
+    def validate_ipv4(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        try:
+            address = IPv4Address(value)
+        except AddressValueError as error:
+            raise ValueError("ip_address must be a valid IPv4 address") from error
+        if not address.is_private:
+            raise ValueError("ip_address must be a private or local IPv4 address")
+        return str(address)
 
 
 class DeviceAuthorizationRequest(BaseModel):

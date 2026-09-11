@@ -7,7 +7,7 @@ import {
   Network,
   BarChart3,
   ShieldCheck,
-  Lock,
+  
   FileText,
   Settings,
   Bell,
@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 
 import "./App.css";
-import { clearSession, getDashboardData, listDevices, registerDevice } from "./api";
+import { clearSession, ensureDemoSession, getDashboardData, listDevices, normalizeDevice, registerDevice } from "./api";
 import sentinelLogo from "./assets/sentinel-logo.svg";
 
 const stats = [
@@ -63,135 +63,6 @@ const stats = [
   },
 ];
 
-const events = [
-  ["10:24:32 AM", "CAM-07", "Malware detected (Trojan.Win32)", "Critical", "Active"],
-  ["09:15:47 AM", "SRV-APP-02", "Failed login attempt (5 times)", "High", "Active"],
-  ["08:45:12 AM", "IOT-22", "Unusual data transfer detected", "High", "Investigating"],
-  ["07:30:55 AM", "PC-ADMIN-03", "USB device policy violation", "Medium", "Resolved"],
-  ["06:22:18 AM", "AP-01", "New device connected", "Low", "Resolved"],
-];
-
-const threats = [
-  {
-    title: "Malware Detected",
-    device: "CAM-07",
-    severity: "Critical",
-    color: "red",
-    time: "Today, 10:24 AM",
-    status: "Active",
-    source: "Endpoint telemetry",
-    description: "Malware activity was detected on the endpoint. SENTINEL recommends isolating the device and running a full security scan.",
-    recommendation: "Isolate CAM-07 and start a full malware scan.",
-  },
-  {
-    title: "Unauthorized Access Attempt",
-    device: "SRV-APP-02",
-    severity: "High",
-    color: "orange",
-    time: "Today, 09:15 AM",
-    status: "Active",
-    source: "Authentication logs",
-    description: "Multiple failed login attempts were detected from an unusual source against the application server.",
-    recommendation: "Review authentication logs and verify the source IP.",
-  },
-  {
-    title: "Anomalous Behavior",
-    device: "IOT-22",
-    severity: "High",
-    color: "purple",
-    time: "Today, 08:45 AM",
-    status: "Investigating",
-    source: "Network telemetry",
-    description: "Traffic patterns for this IoT device differ from its learned baseline and require investigation.",
-    recommendation: "Inspect recent connections and compare the device against its normal traffic profile.",
-  },
-  {
-    title: "Policy Violation",
-    device: "PC-ADMIN-03",
-    severity: "Medium",
-    color: "orange",
-    time: "Today, 07:30 AM",
-    status: "Resolved",
-    source: "Endpoint policy engine",
-    description: "A USB policy violation was detected. The policy event has been reviewed and resolved.",
-    recommendation: "Keep the current endpoint policy and monitor for recurrence.",
-  },
-];
-
-const devices = [
-  {
-    name: "SRV-DB-01",
-    ip: "10.0.1.10",
-    type: "Server",
-    zone: "Data Center",
-    status: "Online",
-    risk: 20,
-    lastSeen: "2 min ago",
-  },
-  {
-    name: "SRV-APP-02",
-    ip: "10.0.1.11",
-    type: "Server",
-    zone: "Data Center",
-    status: "Online",
-    risk: 35,
-    lastSeen: "1 min ago",
-  },
-  {
-    name: "PC-ADMIN-03",
-    ip: "10.0.2.15",
-    type: "Workstation",
-    zone: "Office",
-    status: "Online",
-    risk: 25,
-    lastSeen: "1 min ago",
-  },
-  {
-    name: "CAM-07",
-    ip: "10.0.3.25",
-    type: "Camera",
-    zone: "Office",
-    status: "At Risk",
-    risk: 78,
-    lastSeen: "1 min ago",
-  },
-  {
-    name: "IOT-22",
-    ip: "10.0.3.45",
-    type: "IoT Device",
-    zone: "Office",
-    status: "At Risk",
-    risk: 65,
-    lastSeen: "1 min ago",
-  },
-  {
-    name: "FW-01",
-    ip: "10.0.1.1",
-    type: "Firewall",
-    zone: "Data Center",
-    status: "Online",
-    risk: 10,
-    lastSeen: "2 min ago",
-  },
-  {
-    name: "AP-01",
-    ip: "10.0.2.5",
-    type: "Access Point",
-    zone: "Office",
-    status: "Online",
-    risk: 15,
-    lastSeen: "2 min ago",
-  },
-  {
-    name: "PRN-01",
-    ip: "10.0.2.20",
-    type: "Printer",
-    zone: "Office",
-    status: "Offline",
-    risk: null,
-    lastSeen: "20 min ago",
-  },
-];
 function StatCard({ item }) {
   return (
     <div className="stat-card">
@@ -247,8 +118,8 @@ function StatCard({ item }) {
           <div className="stat-extra">
             {item.type === "devices" && (
               <>
-                <span className="green">Online: {item.online ?? (item.value === "—" ? "—" : 112)}</span>
-                <span className="red">Offline: {item.offline ?? (item.value === "—" ? "—" : 15)}</span>
+                <span className="green">Online: {item.online ?? "—"}</span>
+                <span className="red">Offline: {item.offline ?? "—"}</span>
               </>
             )}
 
@@ -281,7 +152,8 @@ function NetworkNode({ className, icon, name, status }) {
   );
 }
 
-function Infrastructure() {
+function Infrastructure({ items = [] }) {
+  const nodeClasses = ["server1", "server2", "camera", "iot", "pc", "printer", "firewall", "access"];
   return (
     <div className="panel infrastructure">
       <div className="panel-header">
@@ -293,67 +165,9 @@ function Infrastructure() {
       </div>
 
       <div className="network">
-
-        <NetworkNode
-          className="server1"
-          icon={<Server size={17} />}
-          name="SRV-DB-01"
-          status="online"
-        />
-
-        <NetworkNode
-          className="server2"
-          icon={<Server size={17} />}
-          name="SRV-APP-02"
-          status="online"
-        />
-
-        <NetworkNode
-          className="camera"
-          icon={<Camera size={17} />}
-          name="CAM-07"
-          status="critical"
-        />
-
-        <NetworkNode
-          className="iot"
-          icon={<Activity size={17} />}
-          name="IOT-22"
-          status="warning"
-        />
-
-        <div className="core-switch">
-          <Network size={25} />
-          <span>CORE-SW-01</span>
-        </div>
-
-        <NetworkNode
-          className="pc"
-          icon={<Monitor size={17} />}
-          name="PC-ADMIN-03"
-          status="online"
-        />
-
-        <NetworkNode
-          className="printer"
-          icon={<Printer size={17} />}
-          name="PRN-01"
-          status="online"
-        />
-
-        <NetworkNode
-          className="firewall"
-          icon={<ShieldCheck size={17} />}
-          name="FW-01"
-          status="online"
-        />
-
-        <NetworkNode
-          className="access"
-          icon={<Wifi size={17} />}
-          name="AP-01"
-          status="online"
-        />
+        {items.length ? items.slice(0, nodeClasses.length).map((device, index) => (
+          <NetworkNode key={device.id} className={nodeClasses[index]} icon={<Monitor size={17} />} name={device.name} status={device.status === "Online" ? "online" : "offline"} />
+        )) : <div className="network-empty">No authorized devices available.</div>}
       </div>
 
       <div className="network-legend">
@@ -366,7 +180,7 @@ function Infrastructure() {
   );
 }
 
-function ThreatDistribution({ items = threats }) {
+function ThreatDistribution({ items = [] }) {
   const distribution = items.reduce((counts, threat) => {
     counts[threat.title] = (counts[threat.title] || 0) + 1;
     return counts;
@@ -378,38 +192,14 @@ function ThreatDistribution({ items = threats }) {
   };
   return (
     <div className="panel threat-distribution">
-      <div className="panel-header">
-        <h3>Threat Distribution</h3>
-      </div>
-
+      <div className="panel-header"><h3>Threat Distribution</h3></div>
       <div className="threat-chart-area">
-        <div className="donut">
-          <div className="donut-center">
-            <small>Total</small>
-            <strong>{total || "—"}</strong>
-          </div>
-        </div>
-
+        <div className="donut"><div className="donut-center"><small>Total</small><strong>{total || "—"}</strong></div></div>
         <div className="threat-list">
-          <div>
-            <span><i className="dot red"></i> Malware</span>
-            <b>{displayCount("Malware Detected")}</b>
-          </div>
-
-          <div>
-            <span><i className="dot orange"></i> Unauthorized Access</span>
-            <b>{displayCount("Unauthorized Access Attempt")}</b>
-          </div>
-
-          <div>
-            <span><i className="dot purple"></i> Anomalous Behavior</span>
-            <b>{displayCount("Anomalous Behavior")}</b>
-          </div>
-
-          <div>
-            <span><i className="dot blue-dot"></i> Policy Violation</span>
-            <b>{displayCount("Policy Violation")}</b>
-          </div>
+          <div><span><i className="dot red"></i> Malware</span><b>{displayCount("Malware Detected")}</b></div>
+          <div><span><i className="dot orange"></i> Unauthorized Access</span><b>{displayCount("Unauthorized Access Attempt")}</b></div>
+          <div><span><i className="dot purple"></i> Anomalous Behavior</span><b>{displayCount("Anomalous Behavior")}</b></div>
+          <div><span><i className="dot blue-dot"></i> Policy Violation</span><b>{displayCount("Policy Violation")}</b></div>
         </div>
       </div>
     </div>
@@ -417,74 +207,22 @@ function ThreatDistribution({ items = threats }) {
 }
 
 function RiskTrend({ riskScore = 0, history = [] }) {
-  const points = history.length > 0 ? history.slice(-10) : [riskScore];
-
-  const graphPoints = points
-    .map((y, index) => {
-      const x = (index / (points.length - 1)) * 600;
-      const graphY = 180 - (y / 100) * 130;
-
-      return `${x},${graphY}`;
-    })
-    .join(" ");
-
-  const fillPoints = `0,180 ${graphPoints} 600,180`;
-
-  const currentRisk = points[points.length - 1];
-
+  const points = history.length > 0 ? history.slice(-10) : [];
+  const graphPoints = points.map((value, index) => {
+    const x = points.length === 1 ? 300 : (index / (points.length - 1)) * 600;
+    return `${x},${180 - (value / 100) * 130}`;
+  }).join(" ");
+  const fillPoints = points.length ? `0,180 ${graphPoints} 600,180` : "0,180 600,180";
+  const currentRisk = points[points.length - 1] ?? riskScore;
   return (
     <div className="panel risk-panel">
-      <div className="panel-header">
-        <h3>
-          Risk Trend <small>(7 Days)</small>
-        </h3>
-
-        <span className="risk-live">
-          LIVE
-        </span>
-      </div>
-
-      <div className="risk-chart">
-        <svg
-          viewBox="0 0 600 200"
-          preserveAspectRatio="none"
-        >
-          <line
-            x1="0"
-            y1="180"
-            x2="600"
-            y2="180"
-            className="chart-line"
-          />
-
-          <polygon
-            points={fillPoints}
-            className="risk-fill"
-          />
-
-          <polyline
-            points={graphPoints}
-            fill="none"
-            className="risk-wave"
-          />
-
-          <circle
-            cx="600"
-            cy={180 - (currentRisk / 100) * 130}
-            r="5"
-            className="risk-dot"
-          />
-        </svg>
-
-        <div className="risk-value">
-          Risk Score: <strong>{history.length ? currentRisk : "—"}</strong>
-        </div>
-      </div>
+      <div className="panel-header"><h3>Risk Trend <small>(7 Days)</small></h3><span className="risk-live">{points.length ? "LIVE" : "NO DATA"}</span></div>
+      <div className="risk-chart"><svg viewBox="0 0 600 200" preserveAspectRatio="none"><line x1="0" y1="180" x2="600" y2="180" className="chart-line" />{points.length > 1 && <><polygon points={fillPoints} className="risk-fill" /><polyline points={graphPoints} fill="none" className="risk-wave" /><circle cx={points.length === 1 ? 300 : 600} cy={180 - (currentRisk / 100) * 130} r="5" className="risk-dot" /></>}</svg><div className="risk-value">Risk Score: <strong>{points.length ? currentRisk : "INSUFFICIENT DATA"}</strong></div></div>
     </div>
   );
 }
 
-function RecentThreats({ items = threats }) {
+function RecentThreats({ items = [] }) {
   return (
     <div className="panel recent-threats">
       <div className="panel-header">
@@ -515,7 +253,7 @@ function RecentThreats({ items = threats }) {
   );
 }
 
-function SecurityEvents({ onViewAll, items = events }) {
+function SecurityEvents({ onViewAll, items = [] }) {
   return (
     <div className="panel security-events">
       <div className="panel-header">
@@ -571,7 +309,7 @@ function SecurityEvents({ onViewAll, items = events }) {
   );
 }
 
-function AIRecommendation({ onTakeAction }) {
+function AIRecommendation({ onTakeAction, items = [] }) {
   return (
     <div className="panel ai-panel">
       <div className="panel-header">
@@ -584,30 +322,20 @@ function AIRecommendation({ onTakeAction }) {
             <Brain size={21} />
           </div>
 
-          <div>
-            <strong>High Risk Detected</strong>
-            <p>
-              CAM-07 is showing malicious behavior similar to known attack
-              patterns.
-            </p>
-          </div>
+          <div><strong>{items.length ? "Evidence Requires Review" : "No Active Findings"}</strong><p>{items.length ? "SENTINEL detected stored security findings that require review." : "No active security findings are stored for authorized devices."}</p></div>
         </div>
 
-        <h4>Recommended Actions:</h4>
+        {items.length > 0 && <h4>Recommended Actions:</h4>}
 
-        <ul>
-          <li>Isolate device</li>
-          <li>Run full malware scan</li>
-          <li>Preserve evidence</li>
-        </ul>
+        {items.length > 0 && <ul><li>Review the evidence</li><li>Investigate the affected device</li><li>Preserve the event record</li></ul>}
 
-        <button type="button" onClick={onTakeAction}>Take Action</button>
+        {items.length > 0 && <button type="button" onClick={onTakeAction}>Take Action</button>}
       </div>
     </div>
   );
 }
 
-function Devices({ items = [] }) {
+function Devices({ items = [], activity = [] }) {
   const [deviceList, setDeviceList] = useState(items);
   const [selectedDevice, setSelectedDevice] = useState(items[0]);
   const [search, setSearch] = useState("");
@@ -662,14 +390,12 @@ function Devices({ items = [] }) {
   });
 
   useEffect(() => {
-    if (filteredDevices.length > 0 && !filteredDevices.some((device) => device.name === selectedDevice?.name)) {
-      setSelectedDevice(filteredDevices[0]);
-    }
-  }, [category, statusFilter, zoneFilter, search, deviceList]);
-
-  useEffect(() => {
-    setDeviceList(items);
-    setSelectedDevice(items[0]);
+    setDeviceList((currentDevices) => {
+      const incomingIds = new Set(items.map((device) => device.id));
+      const retainedDevices = currentDevices.filter((device) => !device.id || !incomingIds.has(device.id));
+      return [...items, ...retainedDevices];
+    });
+    setSelectedDevice((currentDevice) => currentDevice || items[0]);
   }, [items]);
 
   const addDevice = async (e) => {
@@ -685,16 +411,7 @@ function Devices({ items = [] }) {
     try {
       await registerDevice(newDevice);
       const refreshed = await listDevices();
-      const normalized = refreshed.map((device) => ({
-        ...device,
-        name: device.hostname || device.id,
-        ip: device.ip_address || "-",
-        type: device.device_type,
-        zone: device.monitoring_scope?.zone || "Configured Scope",
-        status: device.status === "ONLINE" ? "Online" : device.status === "OFFLINE" ? "Offline" : "Unknown",
-        risk: null,
-        lastSeen: device.last_telemetry_at ? new Date(device.last_telemetry_at).toLocaleString() : "No telemetry",
-      }));
+      const normalized = refreshed.map(normalizeDevice);
       setDeviceList(normalized);
       setSelectedDevice(normalized.find((device) => device.name === name) || normalized[0]);
       setShowAddDevice(false);
@@ -722,7 +439,11 @@ function Devices({ items = [] }) {
     <div className="devices-page">
       <div className="devices-top">
         <div>
-          <h1>Devices</h1>
+            <div className="activity-list">
+              {activity.length ? activity.slice(0, 5).map((event, index) => (
+                <div key={`${event[0]}-${index}`}><i className={`activity-dot ${event[3] === "Critical" ? "red" : "orange"}`}></i><span>{event[2]}</span><time>{event[0]}</time></div>
+              )) : <div><span>No recent security activity.</span></div>}
+            </div>
           <p>Monitor and manage all connected devices</p>
         </div>
 
@@ -816,22 +537,22 @@ function Devices({ items = [] }) {
                 <div><span>Risk Score</span><strong className={`detail-risk ${selectedDevice?.risk < 30 ? "detail-risk-safe" : ""}`}>{selectedDevice?.risk ?? "-"}</strong></div>
               </div>
               <div className="device-details second-row">
-                <div><span>Vendor</span><strong>{selectedDevice?.vendor || "Hikvision"}</strong></div>
+                <div><span>Vendor</span><strong>{selectedDevice?.vendor || "UNKNOWN"}</strong></div>
                 <div><span>Last Seen</span><strong>{selectedDevice?.lastSeen}</strong></div>
-                <div><span>Uptime</span><strong>{selectedDevice?.uptime || "120d 4h 32m"}</strong></div>
+                <div><span>Uptime</span><strong>{selectedDevice?.uptime || "UNKNOWN"}</strong></div>
+                <div><span>CPU</span><strong>{selectedDevice?.cpuPercent == null ? "No data" : `${selectedDevice.cpuPercent}%`}</strong></div>
+                <div><span>Memory</span><strong>{selectedDevice?.memoryPercent == null ? "No data" : `${selectedDevice.memoryPercent}%`}</strong></div>
+                <div><span>Processes</span><strong>{selectedDevice?.processCount ?? "No data"}</strong></div>
+                <div><span>Connections</span><strong>{selectedDevice?.connectionCount ?? "No data"}</strong></div>
               </div>
             </div>
           </div>
-          <div className="risk-reason"><strong>Reason:</strong> {selectedDevice?.reason || (selectedDevice?.status === "At Risk" ? "Malware detected and unauthorized outbound connections." : "No active security findings.")}</div>
+          <div className="risk-reason"><strong>Reason:</strong> {selectedDevice?.reason || "No active security findings."}</div>
         </div>
 
         <div className="panel recent-activity">
           <div className="panel-header"><h3>Recent Activity</h3></div>
-          <div className="activity-list">
-            <div><i className="activity-dot red"></i><span>Malware detected (Trojan.Win32)</span><time>10:34 AM</time></div>
-            <div><i className="activity-dot red"></i><span>Unauthorized outbound connection</span><time>10:20 AM</time></div>
-            <div><i className="activity-dot orange"></i><span>Multiple failed login attempts</span><time>10:15 AM</time></div>
-          </div>
+          <div className="activity-list"><div><span>No recent security activity.</span></div></div>
           <button className="view-full-details" onClick={() => setShowDetails(true)}>View Full Details</button>
         </div>
       </div>
@@ -858,7 +579,7 @@ function Devices({ items = [] }) {
           <div className="device-modal device-details-modal" onClick={(e) => e.stopPropagation()}>
             <div className="device-modal-header"><div><h3>{selectedDevice.name}</h3><p>Complete device information</p></div><button onClick={() => setShowDetails(false)}><X size={18} /></button></div>
             <div className="device-detail-summary"><div><span>STATUS</span><strong>{selectedDevice.status}</strong></div><div><span>RISK SCORE</span><strong>{selectedDevice.risk ?? "-"}</strong></div><div><span>TYPE</span><strong>{selectedDevice.type}</strong></div><div><span>ZONE</span><strong>{selectedDevice.zone}</strong></div></div>
-            <div className="device-detail-list"><p><span>IP Address</span><strong>{selectedDevice.ip}</strong></p><p><span>Vendor</span><strong>{selectedDevice.vendor || "Hikvision"}</strong></p><p><span>Last Seen</span><strong>{selectedDevice.lastSeen}</strong></p><p><span>Uptime</span><strong>{selectedDevice.uptime || "120d 4h 32m"}</strong></p><p><span>Security State</span><strong>{selectedDevice.status === "At Risk" ? "Investigation required" : "No active findings"}</strong></p></div>
+            <div className="device-detail-list"><p><span>IP Address</span><strong>{selectedDevice.ip}</strong></p><p><span>Vendor</span><strong>{selectedDevice.vendor || "UNKNOWN"}</strong></p><p><span>Last Seen</span><strong>{selectedDevice.lastSeen}</strong></p><p><span>Uptime</span><strong>{selectedDevice.uptime || "UNKNOWN"}</strong></p><p><span>Security State</span><strong>No active security findings.</strong></p></div>
             <button className="device-confirm full-action" onClick={() => { setShowDetails(false); setActionDevice(selectedDevice); }}>Open Device Actions</button>
           </div>
         </div>
@@ -916,13 +637,11 @@ function Header({ sidebarOpen, setSidebarOpen, theme, setTheme, notificationOpen
       <div className="header-right">
         <div className="system-status"><span></span><div><small>System Status</small><strong>Secure</strong></div></div>
         <div className="header-menu-wrap">
-          <button type="button" className="header-button notification" onClick={() => { setNotificationOpen(!notificationOpen); setAdminOpen(false); }} aria-label="Notifications"><Bell size={19} /><i>3</i></button>
+          <button type="button" className="header-button notification" onClick={() => { setNotificationOpen(!notificationOpen); setAdminOpen(false); }} aria-label="Notifications"><Bell size={19} /></button>
           {notificationOpen && (
             <div className="popover notifications-popover">
               <div className="popover-title"><strong>Notifications</strong><button type="button" onClick={() => setNotificationOpen(false)}><X size={15} /></button></div>
-              <div className="notification-item"><span className="notification-dot green-dot"></span><div><strong>Scan completed</strong><p>Security scan completed recently.</p><small>2 min ago</small></div></div>
-              <div className="notification-item"><span className="notification-dot red-dot"></span><div><strong>Critical threat detected</strong><p>Malware detected on CAM-07.</p><small>10 min ago</small></div></div>
-              <div className="notification-item"><span className="notification-dot orange-dot"></span><div><strong>Device activity</strong><p>New device connected to the network.</p><small>18 min ago</small></div></div>
+              <div className="notification-item"><div><strong>No new notifications</strong><p>No persisted security alerts are available.</p></div></div>
             </div>
           )}
         </div>
@@ -971,13 +690,13 @@ function Dashboard({ setActive, onViewEvents, onTakeAction, onViewHealth }) {
           <div className="middle-column"><ThreatDistribution /><RiskTrend /></div>
           <RecentThreats setActive={setActive} />
         </section>
-        <section className="bottom-grid"><SecurityEvents onViewAll={onViewEvents} /><AIRecommendation onTakeAction={onTakeAction} /></section>
+        <section className="bottom-grid"><SecurityEvents items={[]} onViewAll={onViewEvents} /><AIRecommendation items={[]} onTakeAction={onTakeAction} /></section>
       </main>
     </>
   );
 }
 
-function ThreatsAlerts({ items = threats }) {
+function ThreatsAlerts({ items = [] }) {
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [selectedThreat, setSelectedThreat] = useState(null);
   const [toast, setToast] = useState("");
@@ -1198,6 +917,9 @@ function ThreatsAlerts({ items = threats }) {
   );
 }
 function NetworkMap() {
+  return <><header className="header"><div><h1>Relationships / Network Map</h1><p>No live relationship data is available.</p></div></header><main className="network-map-page"><section className="panel"><div className="panel-header"><div><h3>No network relationships</h3><p>Start an authorized collector to populate this view with real connections.</p></div></div></section></main></>;
+
+  /* Legacy interactive map retained below until it is wired to dashboard relationships. */
   const [mapMode, setMapMode] = useState("Network Map");
   const [zone, setZone] = useState("All Zones");
   const [selectedNode, setSelectedNode] = useState("CAM-07");
@@ -1876,10 +1598,14 @@ const handleModeAction = () => {
     </div>
   );
 }
-function RiskAnalysis() {
+function RiskAnalysis({ threats = [] }) {
   const [selectedRisk, setSelectedRisk] = useState(null);
   const [riskFilter, setRiskFilter] = useState("All Risks");
   const [toast, setToast] = useState("");
+
+  if (!threats.length) {
+    return <><header className="header"><div><h1>Risk Analysis</h1><p>Analyze infrastructure risk and security posture</p></div></header><main className="risk-analysis-page"><section className="panel"><div className="panel-header"><div><h3>No risk findings</h3><p>No persisted security findings are available for analysis.</p></div></div></section></main></>;
+  }
 
   const riskDevices = [
     { name: "CAM-07", type: "Camera", zone: "Office", risk: 78, level: "Critical", reason: "Malware activity and suspicious outbound communication were detected." },
@@ -1928,12 +1654,16 @@ function RiskAnalysis() {
     </>
   );
 }
-function ResponseCenter() {
+function ResponseCenter({ threats = [] }) {
   const [activeAction, setActiveAction] = useState(null);
   const [takeActionOpen, setTakeActionOpen] = useState(false);
   const [note, setNote] = useState("");
   const [notes, setNotes] = useState([]);
   const [toast, setToast] = useState("");
+
+  if (!threats.length) {
+    return <><header className="header"><div><h1>Response Center</h1><p>Manage incidents and coordinate security response</p></div></header><main className="response-page"><section className="panel"><div className="panel-header"><div><h3>No active incidents</h3><p>No persisted alerts or incidents require response.</p></div></div></section></main></>;
+  }
 
   const showToast = (message) => { setToast(message); window.clearTimeout(window.__sentinelResponseToast); window.__sentinelResponseToast = window.setTimeout(() => setToast(""), 2400); };
   const handleAction = (action) => {
@@ -1975,6 +1705,9 @@ function ResponseCenter() {
   );
 }
 function Reports() {
+  return <><header className="header"><div><h1>Reports</h1><p>No real report data is available yet.</p></div></header><main className="reports-page"><section className="panel"><div className="panel-header"><div><h3>No report data</h3><p>Reports will appear after persisted security events and incidents are available.</p></div></div></section></main></>;
+
+  /* Legacy report templates retained below until they are backed by report APIs. */
   const [reportType, setReportType] = useState("Security Summary");
   const [dateRange, setDateRange] = useState("Last 7 Days");
   const [customStart, setCustomStart] = useState("");
@@ -2450,7 +2183,7 @@ function Login({ onLogin }) {
       return;
     }
     setError("");
-    onLogin();
+    Promise.resolve(onLogin()).catch((loginError) => setError(loginError.message || "Unable to start the dashboard session."));
   };
   return (
     <div className="login-page">
@@ -2488,13 +2221,13 @@ function App() {
   const [actionOpen, setActionOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [dashboardZone, setDashboardZone] = useState("All Zones");
-  const [dashboardData, setDashboardData] = useState({ riskScore: 0, events: [], threats: [], riskHistory: [], summary: null, devices: [] });
+  const [dashboardData, setDashboardData] = useState({ riskScore: 0, events: [], threats: [], activeThreats: [], riskHistory: [], summary: null, devices: [] });
 
   const dashboardStats = stats.map((item) => {
     const summary = dashboardData.summary;
-    if (item.type === "health") return { ...item, value: summary?.events_processed ? String(Math.max(0, 100 - Math.round(dashboardData.riskScore))) : "—", healthStatus: summary?.events_processed ? "Measured" : "No telemetry", description: summary?.events_processed ? "Calculated from stored security events" : "No telemetry received yet" };
+    if (item.type === "health") return { ...item, value: summary?.telemetry_received ? String(Math.max(0, 100 - Math.round(dashboardData.riskScore))) : "—", healthStatus: summary?.telemetry_received ? "Measured" : "No telemetry", description: summary?.telemetry_received ? "Calculated from real telemetry and security events" : "No telemetry received yet" };
     if (item.type === "devices") return { ...item, value: summary ? String(summary.devices.total) : "—", online: summary?.devices.online, offline: summary ? summary.devices.total - summary.devices.online : undefined };
-    if (item.type === "threat") return { ...item, value: summary ? String(dashboardData.threats.length) : "—", critical: summary ? dashboardData.threats.filter((threat) => threat.severity === "Critical").length : undefined, high: summary ? dashboardData.threats.filter((threat) => threat.severity === "High").length : undefined };
+    if (item.type === "threat") return { ...item, value: summary ? String(dashboardData.activeThreats.length) : "—", critical: summary ? dashboardData.activeThreats.filter((threat) => threat.severity === "Critical").length : undefined, high: summary ? dashboardData.activeThreats.filter((threat) => threat.severity === "High").length : undefined };
     if (item.type === "resolved") return { ...item, value: summary ? String(dashboardData.events.filter((event) => event[4] === "Resolved").length) : "—", today: summary ? dashboardData.events.filter((event) => event[4] === "Resolved").length : undefined };
     return item;
   });
@@ -2506,18 +2239,23 @@ function App() {
   useEffect(() => {
     if (!loggedIn) return undefined;
     let cancelled = false;
-    getDashboardData().then((data) => {
-      if (!cancelled) setDashboardData(data);
+    const syncDashboard = () => getDashboardData().then((data) => { if (!cancelled) setDashboardData((current) => ({
+        ...data,
+        devices: [...data.devices, ...current.devices.filter((device) => !data.devices.some((item) => item.id === device.id))],
+      })); });
+    let interval;
+    ensureDemoSession().then(() => {
+      if (cancelled) return;
+      syncDashboard().catch(() => {});
+      interval = window.setInterval(() => { syncDashboard().catch(() => {}); }, 15000);
     }).catch(() => {
       // Keep the real-data empty state when the API is unavailable.
     });
-    const interval = window.setInterval(() => {
-      getDashboardData().then((data) => { if (!cancelled) setDashboardData(data); }).catch(() => {});
-    }, 15000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [loggedIn]);
 
-  const login = () => {
+  const login = async () => {
+    await ensureDemoSession();
     sessionStorage.setItem("sentinel-logged-in", "true");
     setLoggedIn(true);
   };
@@ -2542,22 +2280,22 @@ function App() {
           <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} theme={theme} setTheme={setTheme} notificationOpen={notificationOpen} setNotificationOpen={setNotificationOpen} adminOpen={adminOpen} setAdminOpen={setAdminOpen} onLogout={logout} />
           <main className="dashboard">
             <section className="stats-grid">{dashboardStats.map((item) => <StatCard item={item} key={item.title} onViewHealth={() => setHealthOpen(true)} />)}</section>
-            <section className="main-grid"><Infrastructure zoneFilter={dashboardZone} setZoneFilter={setDashboardZone} /><div className="middle-column"><ThreatDistribution items={dashboardData.threats} /><RiskTrend riskScore={dashboardData.riskScore} history={dashboardData.riskHistory} /></div><RecentThreats items={dashboardData.threats} setActive={setActive} /></section>
-            <section className="bottom-grid"><SecurityEvents items={dashboardData.events} onViewAll={() => setEventsOpen(true)} /><AIRecommendation onTakeAction={() => setActionOpen(true)} /></section>
+            <section className="main-grid"><Infrastructure items={dashboardData.devices} zoneFilter={dashboardZone} setZoneFilter={setDashboardZone} /><div className="middle-column"><ThreatDistribution items={dashboardData.threats} /><RiskTrend riskScore={dashboardData.riskScore} history={dashboardData.riskHistory} /></div><RecentThreats items={dashboardData.threats} setActive={setActive} /></section>
+            <section className="bottom-grid"><SecurityEvents items={dashboardData.events} onViewAll={() => setEventsOpen(true)} /><AIRecommendation items={dashboardData.activeThreats} onTakeAction={() => setActionOpen(true)} /></section>
           </main>
-        </> : active === "Devices" ? <Devices items={dashboardData.devices} /> : active === "Threats & Alerts" ? <ThreatsAlerts items={dashboardData.threats} /> : active === "Network Map" ? <NetworkMap /> : active === "Risk Analysis" ? <RiskAnalysis /> : active === "Response Center" ? <ResponseCenter /> : active === "Reports" ? <Reports /> : active === "Settings" ? <SentinelSettings /> : null}
+        </> : active === "Devices" ? <Devices items={dashboardData.devices} activity={dashboardData.events} /> : active === "Threats & Alerts" ? <ThreatsAlerts items={dashboardData.threats} /> : active === "Network Map" ? <NetworkMap /> : active === "Risk Analysis" ? <RiskAnalysis threats={dashboardData.threats} /> : active === "Response Center" ? <ResponseCenter threats={dashboardData.threats} /> : active === "Reports" ? <Reports /> : active === "Settings" ? <SentinelSettings /> : null}
       </div>
 
       {eventsOpen && <DashboardModal title="All Security Events" onClose={() => setEventsOpen(false)}>
         <div className="modal-table"><table><thead><tr><th>Time</th><th>Device</th><th>Event</th><th>Severity</th><th>Status</th></tr></thead><tbody>{dashboardData.events.map((event, index) => <tr key={index}><td>{event[0]}</td><td>{event[1]}</td><td>{event[2]}</td><td><span className={`badge ${event[3].toLowerCase()}`}>{event[3]}</span></td><td>{event[4]}</td></tr>)}</tbody></table></div>
       </DashboardModal>}
 
-      {actionOpen && <DashboardModal title="Recommended Actions" onClose={() => setActionOpen(false)} className="action-modal">
-        <p className="modal-description">Choose an action for <strong>CAM-07</strong>. This demo action will be recorded locally and can later be connected to the backend API.</p>
-        <div className="action-list"><button type="button" onClick={() => { setActionOpen(false); alert("CAM-07 isolation action queued."); }}>Isolate device</button><button type="button" onClick={() => { setActionOpen(false); alert("Full malware scan queued for CAM-07."); }}>Run full malware scan</button><button type="button" onClick={() => { setActionOpen(false); alert("Evidence preservation action queued for CAM-07."); }}>Preserve evidence</button></div>
+      {actionOpen && dashboardData.activeThreats.length > 0 && <DashboardModal title="Recommended Actions" onClose={() => setActionOpen(false)} className="action-modal">
+        <p className="modal-description">Review the stored evidence for the selected security finding.</p>
+        <div className="action-list"><button type="button" onClick={() => setActionOpen(false)}>Close</button></div>
       </DashboardModal>}
 
-      {healthOpen && <DashboardModal title="Cyber Health Details" onClose={() => setHealthOpen(false)}><div className="health-modal-content"><div className="health-modal-score">87<span>/100</span></div><p>Infrastructure health is currently <strong>Good</strong>. No change to the current dashboard health score.</p><button type="button" onClick={() => setHealthOpen(false)}>Done</button></div></DashboardModal>}
+      {healthOpen && <DashboardModal title="Cyber Health Details" onClose={() => setHealthOpen(false)}><div className="health-modal-content"><div className="health-modal-score">{dashboardStats[0].value}<span>/100</span></div><p>{dashboardStats[0].description}.</p><button type="button" onClick={() => setHealthOpen(false)}>Done</button></div></DashboardModal>}
     </div>
   );
 }

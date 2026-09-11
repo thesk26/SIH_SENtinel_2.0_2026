@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import logging
 
 from fastapi import APIRouter
 from sqlalchemy import desc, func, select
@@ -18,6 +19,7 @@ from app.services.traffic_analyzer import all_user_flows
 from app.utils.helpers import utc_now
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/summary")
@@ -35,7 +37,10 @@ def summary(current_user: CurrentUser, db: DbSession) -> dict:
     online_devices = sum(1 for device in active_records if device.last_telemetry_at and now - device.last_telemetry_at <= freshness_limit)
     stale_devices = sum(1 for device in active_records if device.last_telemetry_at and freshness_limit < now - device.last_telemetry_at <= freshness_limit * 2)
     offline_devices = len(active_records) - online_devices - stale_devices
-    return {"events_processed": event_count, "flows_processed": flow_count, "forecasts_generated": forecast_count, "assumptions_tracked": assumption_count, "devices": {"total": device_count, "active": active_devices, "authorized": authorized_devices, "online": online_devices, "stale": stale_devices, "offline": offline_devices}, "data_source": "REAL", "model": model_status()}
+    telemetry_count = db.scalar(select(func.count(TelemetrySample.id)).where(TelemetrySample.user_id == current_user.id)) or 0
+    latest_telemetry = db.scalar(select(TelemetrySample).where(TelemetrySample.user_id == current_user.id).order_by(TelemetrySample.timestamp.desc()))
+    logger.info("[DASHBOARD_SYNC] user_id=%s devices_returned=%s", current_user.id, device_count)
+    return {"events_processed": event_count, "flows_processed": flow_count, "forecasts_generated": forecast_count, "assumptions_tracked": assumption_count, "telemetry_received": telemetry_count, "last_telemetry": latest_telemetry.timestamp if latest_telemetry else None, "devices": {"total": device_count, "active": active_devices, "authorized": authorized_devices, "online": online_devices, "stale": stale_devices, "offline": offline_devices}, "data_source": "REAL", "model": model_status()}
 
 
 @router.get("/timeline")
@@ -76,4 +81,4 @@ def live_events(current_user: CurrentUser, db: DbSession) -> list[dict]:
 @router.get("/telemetry")
 def telemetry(current_user: CurrentUser, db: DbSession, limit: int = 100) -> list[dict]:
     samples = db.scalars(select(TelemetrySample).where(TelemetrySample.user_id == current_user.id).order_by(TelemetrySample.timestamp.desc()).limit(min(limit, 500))).all()
-    return [{"id": sample.id, "device_id": sample.device_id, "timestamp": sample.timestamp, "received_at": sample.received_at, "cpu_percent": sample.cpu_percent, "memory_percent": sample.memory_percent, "disk_percent": sample.disk_percent, "uptime_seconds": sample.uptime_seconds, "bytes_sent": sample.bytes_sent, "bytes_received": sample.bytes_received, "connection_count": sample.connection_count, "data_source": sample.data_source} for sample in samples]
+    return [{"id": sample.id, "device_id": sample.device_id, "timestamp": sample.timestamp, "received_at": sample.received_at, "cpu_percent": sample.cpu_percent, "memory_percent": sample.memory_percent, "disk_percent": sample.disk_percent, "uptime_seconds": sample.uptime_seconds, "bytes_sent": sample.bytes_sent, "bytes_received": sample.bytes_received, "packets_sent": sample.packets_sent, "packets_received": sample.packets_received, "connection_count": sample.connection_count, "process_count": sample.process_count, "service_count": sample.service_count, "memory_total_bytes": sample.memory_total_bytes, "memory_available_bytes": sample.memory_available_bytes, "memory_used_bytes": sample.memory_used_bytes, "disk_total_bytes": sample.disk_total_bytes, "disk_free_bytes": sample.disk_free_bytes, "data_source": sample.data_source} for sample in samples]

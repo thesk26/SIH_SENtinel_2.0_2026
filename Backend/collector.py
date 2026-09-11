@@ -29,10 +29,38 @@ class AuthorizationRevoked(RuntimeError):
     pass
 
 
+class AccessTokenExpired(RuntimeError):
+    pass
+
+
+def _process_count() -> int:
+    return sum(1 for _ in psutil.process_iter(attrs=["pid"]))
+
+
+def _service_count() -> int | None:
+    if os.name != "nt" or not hasattr(psutil, "win_service_iter"):
+        return None
+    try:
+        return sum(1 for _ in psutil.win_service_iter())
+    except (psutil.AccessDenied, OSError):
+        return None
+
+
 def _raise_for_collection(response: httpx.Response) -> None:
-    if response.status_code in {401, 403, 404}:
+    if response.status_code == 401:
+        raise AccessTokenExpired("collector access token expired")
+    if response.status_code in {403, 404}:
         raise AuthorizationRevoked(f"collector authorization rejected: HTTP {response.status_code}")
     response.raise_for_status()
+
+
+def refresh_access_token(api_url: str, refresh_token: str) -> tuple[str, str]:
+    response = httpx.post(f"{api_url.rstrip('/')}/auth/refresh", json={"refresh_token": refresh_token}, timeout=10.0)
+    if response.status_code in {401, 403, 404}:
+        raise AuthorizationRevoked("collector refresh token rejected")
+    response.raise_for_status()
+    payload = response.json()
+    return payload["access_token"], payload["refresh_token"]
 
 
 def collect_once(api_url: str, token: str, device_id: str) -> int:
@@ -45,6 +73,10 @@ def collect_once(api_url: str, token: str, device_id: str) -> int:
         system_drive = os.environ.get("SystemDrive", "C:") + "\\"
         disk_path = system_drive if os.name == "nt" else "/"
         counters = psutil.net_io_counters()
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage(disk_path)
+        process_count = _process_count()
+        service_count = _service_count()
         telemetry = client.post("/collector/telemetry", json={
             "device_id": device_id,
             "timestamp": observed_at.isoformat(),
@@ -52,11 +84,20 @@ def collect_once(api_url: str, token: str, device_id: str) -> int:
             "memory_percent": psutil.virtual_memory().percent,
             "disk_percent": psutil.disk_usage(disk_path).percent,
             "uptime_seconds": int(time.time() - psutil.boot_time()),
-            "os_information": {"system": platform.system(), "release": platform.release(), "version": platform.version(), "machine": platform.machine()},
+            "os_information": {"hostname": socket.gethostname(), "system": platform.system(), "release": platform.release(), "version": platform.version(), "machine": platform.machine(), "boot_time": datetime.fromtimestamp(psutil.boot_time(), UTC).isoformat()},
             "interfaces": {name: {"is_up": stats.isup, "speed_mbps": stats.speed, "mtu": stats.mtu} for name, stats in psutil.net_if_stats().items()},
             "bytes_sent": counters.bytes_sent,
             "bytes_received": counters.bytes_recv,
+            "packets_sent": counters.packets_sent,
+            "packets_received": counters.packets_recv,
             "connection_count": len(psutil.net_connections(kind="inet")),
+            "process_count": process_count,
+            "service_count": service_count,
+            "memory_total_bytes": memory.total,
+            "memory_available_bytes": memory.available,
+            "memory_used_bytes": memory.used,
+            "disk_total_bytes": disk.total,
+            "disk_free_bytes": disk.free,
         })
         _raise_for_collection(telemetry)
         try:
@@ -97,14 +138,28 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Submit authorized local connection metadata to SENTINEL")
     parser.add_argument("--api-url", default=os.getenv("SENTINEL_API_URL", "http://127.0.0.1:8000/api"))
     parser.add_argument("--token", default=os.getenv("SENTINEL_ACCESS_TOKEN"), required=os.getenv("SENTINEL_ACCESS_TOKEN") is None)
+    parser.add_argument("--refresh-token", default=os.getenv("SENTINEL_REFRESH_TOKEN"))
     parser.add_argument("--device-id", default=os.getenv("SENTINEL_DEVICE_ID"), required=os.getenv("SENTINEL_DEVICE_ID") is None)
     parser.add_argument("--interval", type=float, default=30.0)
     args = parser.parse_args()
+    access_token = args.token
+    refresh_token = args.refresh_token
 
     while True:
         try:
-            submitted = collect_once(args.api_url.rstrip("/"), args.token, args.device_id)
+            submitted = collect_once(args.api_url.rstrip("/"), access_token, args.device_id)
             print(f"submitted={submitted} source=REAL ingestion_source=LOCAL_COLLECTOR", flush=True)
+        except AccessTokenExpired:
+            if not refresh_token:
+                print("collector_stopped=access token expired; restart with SENTINEL_REFRESH_TOKEN or --refresh-token", flush=True)
+                return
+            try:
+                access_token, refresh_token = refresh_access_token(args.api_url, refresh_token)
+                print("collector_authentication_refreshed=true source=REAL", flush=True)
+                continue
+            except (httpx.HTTPError, AuthorizationRevoked) as error:
+                print(f"collector_stopped=token refresh failed: {error}", flush=True)
+                return
         except AuthorizationRevoked as error:
             print(f"collector_stopped={error}", flush=True)
             return

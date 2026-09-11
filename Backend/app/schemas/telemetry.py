@@ -20,7 +20,16 @@ class TelemetryRequest(BaseModel):
     interfaces: dict = Field(default_factory=dict)
     bytes_sent: int | None = Field(default=None, ge=0)
     bytes_received: int | None = Field(default=None, ge=0)
+    packets_sent: int | None = Field(default=None, ge=0)
+    packets_received: int | None = Field(default=None, ge=0)
     connection_count: int | None = Field(default=None, ge=0)
+    process_count: int | None = Field(default=None, ge=0)
+    service_count: int | None = Field(default=None, ge=0)
+    memory_total_bytes: int | None = Field(default=None, ge=0)
+    memory_available_bytes: int | None = Field(default=None, ge=0)
+    memory_used_bytes: int | None = Field(default=None, ge=0)
+    disk_total_bytes: int | None = Field(default=None, ge=0)
+    disk_free_bytes: int | None = Field(default=None, ge=0)
 
 
 class TelemetryRead(BaseModel):

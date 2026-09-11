@@ -1,7 +1,8 @@
 from datetime import UTC, datetime
+import logging
 
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.core.dependencies import CurrentUser, DbSession
 from app.core.config import settings
@@ -10,6 +11,7 @@ from app.schemas.device import DeviceAuthorizationRequest, DeviceRead, DeviceReg
 from app.utils.helpers import hash_identifier, utc_now
 
 router = APIRouter(prefix="/devices", tags=["devices"])
+logger = logging.getLogger(__name__)
 
 
 def _read(device: Device) -> DeviceRead:
@@ -52,6 +54,9 @@ def _owned(device_id: str, current_user: CurrentUser, db: DbSession) -> Device:
 
 @router.post("", response_model=DeviceRead, status_code=status.HTTP_201_CREATED)
 def register_device(payload: DeviceRegisterRequest, current_user: CurrentUser, db: DbSession):
+    duplicate = db.scalar(select(Device).where(Device.user_id == current_user.id, or_(Device.ip_address == payload.ip_address, Device.hostname == payload.hostname)))
+    if duplicate is not None:
+        raise HTTPException(status_code=409, detail="DEVICE_ALREADY_REGISTERED")
     device = Device(
         user_id=current_user.id,
         device_fingerprint_hash=hash_identifier(payload.mac_address or payload.hostname) or "unknown",
@@ -69,6 +74,7 @@ def register_device(payload: DeviceRegisterRequest, current_user: CurrentUser, d
     db.add(device)
     db.commit()
     db.refresh(device)
+    logger.info("[DEVICE_REGISTER] device_id=%s user_id=%s ip=%s", device.id, current_user.id, device.ip_address)
     return _read(device)
 
 
@@ -88,6 +94,7 @@ def authorize_device(device_id: str, payload: DeviceAuthorizationRequest, curren
     device.consent_reference = payload.consent_reference or device.consent_reference
     db.commit()
     db.refresh(device)
+    logger.info("[DEVICE_AUTHORIZATION] device_id=%s status=%s", device.id, device.authorization_state)
     return _read(device)
 
 
@@ -104,6 +111,7 @@ def activate_device(device_id: str, current_user: CurrentUser, db: DbSession):
     device.status = "UNKNOWN"
     db.commit()
     db.refresh(device)
+    logger.info("[DEVICE_ACTIVATION] device_id=%s status=%s", device.id, device.authorization_state)
     return _read(device)
 
 

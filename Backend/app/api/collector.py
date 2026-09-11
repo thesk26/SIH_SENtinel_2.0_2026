@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+import logging
 
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import desc, func, select
@@ -14,6 +15,7 @@ from app.utils.helpers import utc_now
 
 router = APIRouter(prefix="/collector", tags=["collector"])
 public_router = APIRouter(tags=["collector"])
+logger = logging.getLogger(__name__)
 
 
 def active_device(device_id: str, current_user: CurrentUser, db: DbSession) -> Device:
@@ -42,6 +44,7 @@ def heartbeat(payload: HeartbeatRequest, current_user: CurrentUser, db: DbSessio
     device.last_seen = timestamp
     device.status = "ONLINE"
     db.commit()
+    logger.info("[COLLECTOR_HEARTBEAT] device_id=%s status=%s", device.id, device.status)
     return {"device_id": device.id, "status": device.status, "authorization_state": device.authorization_state, "timestamp": timestamp, "data_source": "REAL"}
 
 
@@ -49,13 +52,14 @@ def heartbeat(payload: HeartbeatRequest, current_user: CurrentUser, db: DbSessio
 def telemetry(payload: TelemetryRequest, current_user: CurrentUser, db: DbSession):
     device = active_device(payload.device_id, current_user, db)
     timestamp = observed_at(payload.timestamp)
-    sample = TelemetrySample(user_id=current_user.id, device_id=device.id, timestamp=timestamp, received_at=utc_now(), cpu_percent=payload.cpu_percent, memory_percent=payload.memory_percent, disk_percent=payload.disk_percent, uptime_seconds=payload.uptime_seconds, os_information=payload.os_information, interfaces=payload.interfaces, bytes_sent=payload.bytes_sent, bytes_received=payload.bytes_received, connection_count=payload.connection_count, data_source="REAL")
+    sample = TelemetrySample(user_id=current_user.id, device_id=device.id, timestamp=timestamp, received_at=utc_now(), cpu_percent=payload.cpu_percent, memory_percent=payload.memory_percent, disk_percent=payload.disk_percent, uptime_seconds=payload.uptime_seconds, os_information=payload.os_information, interfaces=payload.interfaces, bytes_sent=payload.bytes_sent, bytes_received=payload.bytes_received, packets_sent=payload.packets_sent, packets_received=payload.packets_received, connection_count=payload.connection_count, process_count=payload.process_count, service_count=payload.service_count, memory_total_bytes=payload.memory_total_bytes, memory_available_bytes=payload.memory_available_bytes, memory_used_bytes=payload.memory_used_bytes, disk_total_bytes=payload.disk_total_bytes, disk_free_bytes=payload.disk_free_bytes, data_source="REAL")
     device.last_telemetry_at = timestamp
     device.last_seen = timestamp
     device.status = "ONLINE"
     db.add(sample)
     db.commit()
     db.refresh(sample)
+    logger.info("[TELEMETRY] device_id=%s received=true", device.id)
     return sample
 
 @public_router.post("/telemetry", response_model=TelemetryRead)
